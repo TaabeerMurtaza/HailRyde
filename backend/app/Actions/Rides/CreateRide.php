@@ -23,8 +23,17 @@ class CreateRide
         $hash = $this->requestHash($pickup, $destination, $category);
 
         try {
-            return DB::transaction(function () use ($rider, $idempotencyKey, $pickup, $destination, $category, $hash) {
-                return $this->store($rider, $idempotencyKey, $pickup, $destination, $category, $hash);
+            $early = $this->existingOutcome($rider, $idempotencyKey, $hash);
+
+            if ($early !== null) {
+                return $early;
+            }
+
+            // The quote performs HTTP to OSRM, so it runs outside any transaction.
+            $quote = ($this->quote)($pickup, $destination, $category);
+
+            return DB::transaction(function () use ($rider, $idempotencyKey, $pickup, $destination, $category, $hash, $quote) {
+                return $this->store($rider, $idempotencyKey, $pickup, $destination, $category, $hash, $quote);
             });
         } catch (QueryException $exception) {
             if (! $this->isUniqueViolation($exception)) {
@@ -36,9 +45,12 @@ class CreateRide
     }
 
     /**
-     * @return array{ride: Ride, created: bool}
+     * Returns the original ride for a matching replay, or null when the request is new.
+     * Throws for an idempotency conflict or an existing active ride.
+     *
+     * @return array{ride: Ride, created: bool}|null
      */
-    private function store(User $rider, string $idempotencyKey, MapPoint $pickup, MapPoint $destination, string $category, string $hash): array
+    private function existingOutcome(User $rider, string $idempotencyKey, string $hash): ?array
     {
         $replay = $this->matchingReplay($rider, $idempotencyKey, $hash);
 
@@ -55,7 +67,20 @@ class CreateRide
             throw new ActiveRideExistsException($active->id);
         }
 
-        $quote = ($this->quote)($pickup, $destination, $category);
+        return null;
+    }
+
+    /**
+     * @param  array{distance_km: string, duration_min: int, fare_amount: string, currency: string, pickup_eta_min: int|null, route: array<string, mixed>}  $quote
+     * @return array{ride: Ride, created: bool}
+     */
+    private function store(User $rider, string $idempotencyKey, MapPoint $pickup, MapPoint $destination, string $category, string $hash, array $quote): array
+    {
+        $early = $this->existingOutcome($rider, $idempotencyKey, $hash);
+
+        if ($early !== null) {
+            return $early;
+        }
 
         $ride = Ride::query()->create([
             'rider_id' => $rider->id,

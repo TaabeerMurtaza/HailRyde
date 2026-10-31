@@ -1,7 +1,11 @@
 <?php
 
+use App\Exceptions\RouteUnavailableException;
 use App\Models\Ride;
+use App\Rides\FakeRoadRouter;
+use App\Rides\RoadRouter;
 use Illuminate\Log\Events\MessageLogged;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 
 it('creates a requested ride for a rider and ignores a client fare', function () {
@@ -135,3 +139,49 @@ it('returns active_ride_exists when the rider already has a requested or accepte
 
     expect(Ride::query()->count())->toBe(1);
 })->with(['requested', 'accepted']);
+
+it('quotes the route outside the create transaction', function () {
+    $token = $this->postJson('/api/register', registration())->assertCreated()->json('token');
+
+    // RefreshDatabase keeps the test inside one transaction, so compare with that baseline.
+    $baseline = DB::transactionLevel();
+    $levels = [];
+
+    $router = new class($levels) extends FakeRoadRouter
+    {
+        public function __construct(private array &$levels)
+        {
+            parent::__construct();
+        }
+
+        public function drive(float $fromLat, float $fromLng, float $toLat, float $toLng): array
+        {
+            $this->levels[] = DB::transactionLevel();
+
+            return parent::drive($fromLat, $fromLng, $toLat, $toLng);
+        }
+    };
+    $this->app->instance(RoadRouter::class, $router);
+
+    $this->withToken($token)->postJson('/api/rides', tripBody(), ['Idempotency-Key' => 'ride-1'])
+        ->assertCreated()
+        ->assertJsonPath('ride.route.type', 'LineString');
+
+    expect($levels)->toBe([$baseline])
+        ->and(Ride::query()->value('route'))->not->toBeNull();
+});
+
+it('replays an existing ride without a successful router call', function () {
+    $token = $this->postJson('/api/register', registration())->assertCreated()->json('token');
+    $created = $this->withToken($token)->postJson('/api/rides', tripBody(), ['Idempotency-Key' => 'ride-1'])
+        ->assertCreated()
+        ->json('ride.id');
+
+    $this->app->instance(RoadRouter::class, new FakeRoadRouter(driveFailure: new RouteUnavailableException));
+
+    $this->withToken($token)->postJson('/api/rides', tripBody(), ['Idempotency-Key' => 'ride-1'])
+        ->assertOk()
+        ->assertJsonPath('ride.id', $created);
+
+    expect(Ride::query()->count())->toBe(1);
+});

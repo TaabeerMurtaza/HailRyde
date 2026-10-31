@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router'
 import { api } from '../api'
 import { RideMap } from '../components/RideMap'
 import { useAuth } from '../use-auth'
 import { useUserLocation } from '../use-user-location'
+import type { LineString } from 'geojson'
 import type { ApiError, DriverDot, Ride } from '../types'
 
 function noop() {}
@@ -98,16 +99,37 @@ export function RideStatusPage() {
   const canCancel =
     user?.role === 'rider' && (ride?.status === 'requested' || ride?.status === 'accepted')
 
-  const drivers: DriverDot[] = ride?.driver
-    ? [
-        {
-          id: ride.driver.id,
-          lat: ride.driver.lat,
-          lng: ride.driver.lng,
-          category: ride.driver.category,
-        },
-      ]
-    : []
+  const pickupLat = ride?.pickup.lat
+  const pickupLng = ride?.pickup.lng
+  const destinationLat = ride?.destination.lat
+  const destinationLng = ride?.destination.lng
+  const routeKey = ride?.route ? JSON.stringify(ride.route) : null
+  const driverId = ride?.driver?.id
+  const driverLat = ride?.driver?.lat
+  const driverLng = ride?.driver?.lng
+  const driverCategory = ride?.driver?.category
+
+  // Polling replaces the ride object every 3 seconds. Memoize map inputs on their values
+  // so RideMap effects do not remove and re-add pins when nothing moved.
+  const pickup = useMemo(
+    () => ({ lat: Number(pickupLat), lng: Number(pickupLng) }),
+    [pickupLat, pickupLng],
+  )
+  const destination = useMemo(
+    () => ({ lat: Number(destinationLat), lng: Number(destinationLng) }),
+    [destinationLat, destinationLng],
+  )
+  const route = useMemo<LineString | null>(
+    () => (routeKey ? (JSON.parse(routeKey) as LineString) : null),
+    [routeKey],
+  )
+  const drivers = useMemo<DriverDot[]>(
+    () =>
+      driverId !== undefined && driverLat !== undefined && driverLng !== undefined && driverCategory
+        ? [{ id: driverId, lat: driverLat, lng: driverLng, category: driverCategory }]
+        : [],
+    [driverId, driverLat, driverLng, driverCategory],
+  )
 
   return (
     <section className="mx-auto w-full max-w-3xl">
@@ -120,9 +142,9 @@ export function RideStatusPage() {
             Status <span className="font-medium">{ride.status}</span>
           </p>
           <RideMap
-            pickup={{ lat: Number(ride.pickup.lat), lng: Number(ride.pickup.lng) }}
-            destination={{ lat: Number(ride.destination.lat), lng: Number(ride.destination.lng) }}
-            route={ride.route}
+            pickup={pickup}
+            destination={destination}
+            route={route}
             drivers={drivers}
             user={userLocation}
             interactive={false}
