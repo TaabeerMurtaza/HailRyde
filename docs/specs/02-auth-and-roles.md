@@ -43,7 +43,7 @@ Identity comes from the token. Ignore any user id or driver id in a request body
 - A driver lists requested rides in their own category, accepts as themselves, and completes only a ride assigned to them.
 - A driver calling create returns `403` code `forbidden`.
 - A rider calling accept, complete, or the driver ride list returns `403` code `forbidden`.
-- `GET /api/places` and `POST /api/estimates` require a logged-in user of either role.
+- `GET /api/drivers` requires a logged-in rider, and `POST /api/estimates` requires a logged-in user of either role.
 
 ## Demo seed
 

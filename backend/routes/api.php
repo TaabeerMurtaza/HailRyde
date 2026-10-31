@@ -8,9 +8,9 @@ use App\Http\Controllers\Rides\AcceptRideController;
 use App\Http\Controllers\Rides\CancelRideController;
 use App\Http\Controllers\Rides\CompleteRideController;
 use App\Http\Controllers\Rides\CreateRideController;
+use App\Http\Controllers\Rides\DriversController;
 use App\Http\Controllers\Rides\EstimateController;
 use App\Http\Controllers\Rides\ListRidesController;
-use App\Http\Controllers\Rides\PlacesController;
 use App\Http\Controllers\Rides\ShowRideController;
 use Illuminate\Support\Facades\Route;
 
@@ -20,7 +20,7 @@ Route::post('/login', LoginController::class);
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', LogoutController::class);
     Route::get('/me', MeController::class);
-    Route::get('/places', PlacesController::class);
+    Route::get('/drivers', DriversController::class);
     Route::post('/estimates', EstimateController::class);
     Route::get('/rides', ListRidesController::class);
     Route::post('/rides', CreateRideController::class);

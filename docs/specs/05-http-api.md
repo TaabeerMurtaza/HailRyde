@@ -19,7 +19,7 @@ Error body:
 
 - `POST /api/logout` — `204`.
 - `GET /api/me` — `{ "user": User }`.
-- `GET /api/places` — `{ "places": [ { "id", "name", "lat", "lng" } ] }`.
+- `GET /api/drivers` — query `category` (`economy` or `comfort`, required). Rider only; a driver gets `403` code `forbidden`. `200` `{ "drivers": [ { "id", "lat", "lng", "category" } ] }` for the `available` drivers in that category.
 - `POST /api/estimates` — body `pickup_lat`, `pickup_lng`, `destination_lat`, `destination_lng` (numbers), `category`. `200` `{ "distance_km", "duration_min", "fare_amount", "currency": "PKR", "pickup_eta_min", "route" }`. `route` is a GeoJSON `LineString` with `[lng, lat]` positions. `422` for the same pin after 6-decimal rounding and for coordinates outside the bookable area. `422` code `no_route` with message `Those points are not connected by a road.` when no road joins the points. `503` code `route_unavailable` with message `Road routing is unavailable.` when the router cannot be used.
 
 ## Rides

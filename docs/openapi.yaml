@@ -88,26 +88,36 @@ paths:
                     $ref: '#/components/schemas/User'
         '401':
           $ref: '#/components/responses/Unauthenticated'
-  /api/places:
+  /api/drivers:
     get:
-      summary: Preset Lahore places
+      summary: List available drivers in a category
       security:
         - bearerAuth: []
+      parameters:
+        - in: query
+          name: category
+          required: true
+          schema:
+            $ref: '#/components/schemas/Category'
       responses:
         '200':
-          description: Places
+          description: Available drivers
           content:
             application/json:
               schema:
                 type: object
-                required: [places]
+                required: [drivers]
                 properties:
-                  places:
+                  drivers:
                     type: array
                     items:
-                      $ref: '#/components/schemas/Place'
+                      $ref: '#/components/schemas/Driver'
         '401':
           $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
   /api/estimates:
     post:
       summary: Price a trip
@@ -501,6 +511,18 @@ components:
           type: string
         lng:
           type: string
+    Driver:
+      type: object
+      required: [id, lat, lng, category]
+      properties:
+        id:
+          type: integer
+        lat:
+          type: string
+        lng:
+          type: string
+        category:
+          $ref: '#/components/schemas/Category'
     LineString:
       type: object
       required: [type, coordinates]
