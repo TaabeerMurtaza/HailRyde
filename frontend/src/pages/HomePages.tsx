@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Link, Navigate, useParams } from 'react-router'
+import { Link, Navigate } from 'react-router'
 import { useAuth } from '../use-auth'
 
 export function RequireAuth({ children }: { children: ReactNode }) {
@@ -39,38 +39,3 @@ export function RequireRole({ role, children }: { role: 'rider' | 'driver'; chil
   )
 }
 
-export function RiderHomePage() {
-  const { user } = useAuth()
-
-  return (
-    <section>
-      <h1 className="text-3xl font-semibold tracking-tight">Book a ride</h1>
-      <p className="mt-2 text-stone-700">Signed in as {user?.name}.</p>
-    </section>
-  )
-}
-
-export function DriverDeskPage() {
-  const { user } = useAuth()
-  const category = user?.driver_profile?.category
-
-  return (
-    <section>
-      <h1 className="text-3xl font-semibold tracking-tight">Driver desk</h1>
-      <p className="mt-2 text-stone-700">
-        Signed in as {user?.name}{category ? `, ${category}` : ''}.
-      </p>
-    </section>
-  )
-}
-
-export function RideStatusPage() {
-  const { id } = useParams()
-
-  return (
-    <section>
-      <h1 className="text-3xl font-semibold tracking-tight">Ride status</h1>
-      <p className="mt-2 text-stone-700">Ride {id}</p>
-    </section>
-  )
-}

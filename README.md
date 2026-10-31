@@ -43,5 +43,8 @@ These commands were run:
 
 - `cd backend && php artisan test` (the lock test skips on SQLite)
 - Lock test, with Compose Postgres up: `cd backend && DB_CONNECTION=pgsql DB_HOST=127.0.0.1 DB_PORT=5432 DB_DATABASE=hailryde DB_USERNAME=hailryde DB_PASSWORD=hailryde php artisan test --filter=lock`
+- `cd frontend && npm test`
+- `cd frontend && npm run build`
+- `cd frontend && npx playwright test` (Compose web and API already running, database seeded)
 
-Earlier auth checks also ran `cd frontend && npm test`, `cd frontend && npm run build`, and the register, login, logout, and rider/driver route guards in the browser.
+The book, status, and driver-desk screens were also walked in the browser: a rider quote, request, status, and cancel; a lost accept showing the transition error; a driver complete; and the rider and driver route guards.

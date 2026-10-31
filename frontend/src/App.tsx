@@ -1,7 +1,10 @@
 import { Link, Route, Routes } from 'react-router'
 import { AuthProvider } from './auth'
 import { useAuth } from './use-auth'
-import { DriverDeskPage, RequireAuth, RequireRole, RideStatusPage, RiderHomePage } from './pages/HomePages'
+import { BookPage } from './pages/BookPage'
+import { DriverDeskPage } from './pages/DriverDeskPage'
+import { RequireAuth, RequireRole } from './pages/HomePages'
+import { RideStatusPage } from './pages/RideStatusPage'
 import { LoginPage } from './pages/LoginPage'
 import { RegisterPage } from './pages/RegisterPage'
 
@@ -19,7 +22,7 @@ export default function App() {
               element={
                 <RequireAuth>
                   <RequireRole role="rider">
-                    <RiderHomePage />
+                    <BookPage />
                   </RequireRole>
                 </RequireAuth>
               }

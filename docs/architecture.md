@@ -25,3 +25,29 @@ Accounts, sessions, fares, idempotent create, and ride transitions are implement
 7. Ship with the Compose stack's images behind a reverse proxy, Postgres backups, and health checks on `/up`. Log ride id and status transitions. Roll back by redeploying the previous image and running only backward-compatible migrations. A bad release is reverted by putting the previous API image back, not by editing the database in place.
 
 8. Before production: replace localStorage with an httpOnly cookie, add rate limits on register and login, and run the accept lock test against PostgreSQL in CI.
+
+## Nearby drivers
+
+Pickup ETA ranks `available` drivers in the ride category by haversine distance. Accept does not dispatch. It assigns the authenticated driver who calls `POST /api/rides/{id}/accept`, after checking that the driver is available and in the same category.
+
+In production, keep available drivers in a geo index. Offer the ride to the nearest eligible driver, and offer it to the next driver if that one does not accept in time.
+
+```mermaid
+flowchart LR
+  rider[Rider]
+  driver[Driver]
+  api[LaravelAPI]
+  db[PostgreSQL]
+  rider -->|"book and cancel"| api
+  driver -->|"accept and complete"| api
+  api -->|"lock the ride row on accept"| db
+```
+
+## Known limitations
+
+- Places are eight preset Lahore points. The status view draws those two points in an SVG. It is not a live map.
+- A driver accepts their own ride. The server does not dispatch the nearest driver.
+- The demo token lives in `localStorage`. A production client would use an httpOnly cookie.
+- The status page polls every 3 seconds. It does not use a push channel.
+- The build is one city, Lahore, with one API process and one Postgres primary.
+- `php artisan test` skips the accept lock test unless `DB_CONNECTION=pgsql`.

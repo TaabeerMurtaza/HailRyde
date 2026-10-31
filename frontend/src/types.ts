@@ -27,3 +27,51 @@ export type SessionResponse = {
   token: string
   user: AuthUser
 }
+
+export type Place = {
+  id: string
+  name: string
+  lat: string
+  lng: string
+}
+
+export type RideCategory = 'economy' | 'comfort'
+
+export type Estimate = {
+  distance_km: string
+  duration_min: number
+  fare_amount: string
+  currency: string
+  pickup_eta_min: number | null
+}
+
+export type RideStatus = 'requested' | 'accepted' | 'completed' | 'cancelled'
+
+export type RidePerson = {
+  id: number
+  name: string
+  phone: string
+}
+
+export type RideDriver = RidePerson & {
+  plate: string
+  category: RideCategory
+}
+
+export type Ride = {
+  id: number
+  status: RideStatus
+  category: RideCategory
+  pickup: Place
+  destination: Place
+  distance_km: string
+  duration_min: number
+  pickup_eta_min: number | null
+  fare_amount: string
+  currency: string
+  rider: RidePerson
+  driver: RideDriver | null
+  accepted_at: string | null
+  cancelled_at: string | null
+  completed_at: string | null
+}
