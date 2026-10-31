@@ -6,7 +6,12 @@ Use Pest. Cover:
 
 - Register a rider and a driver. A driver registration without plate or category is `422`.
 - A rider can create a ride. A driver cannot (`403`). A driver can accept. A rider cannot (`403`).
-- Create persists the fare computed by the documented formula for Gulberg to Airport, Economy. The test computes the expected fare with that formula and compares it to the response.
+- Create persists the fare computed by the documented formula from a fixed fake router's distance and duration, for Economy. The test computes the expected fare with that formula and compares it to the response.
+- Coordinates outside the bookable area are `422`.
+- The same pin for pickup and destination is `422`.
+- A router that reports no road connection gives `422` `no_route`.
+- A router that fails or times out gives `503` `route_unavailable`.
+- `php artisan test` binds the fake router and does not call the public OSRM demo.
 - Invalid body, the same pickup and destination, and a missing `Idempotency-Key` are `422`.
 - An offline driver and a driver of the wrong category cannot accept (`409`). An eligible available driver can.
 - Two accepts: one PostgreSQL connection holds `SELECT ... FOR UPDATE` on the ride while the other accept returns `409` `lock_timeout`. After that lock commits and releases, one driver accepts with `200` and the other driver accepts with `409` `invalid_transition`.
@@ -24,7 +29,7 @@ Vitest and Testing Library, on the book page:
 
 ## End to end
 
-One Playwright test. The API and Vite dev server are already running. Log in as `rider@hailryde.test`, book Economy from Gulberg to Allama Iqbal Airport, and land on a status URL that shows the fare.
+One Playwright test. The API and Vite dev server are already running. Browser geolocation is set to Gulberg. Log in as `rider@hailryde.test`, click the map once to set the destination, wait for the quoted fare, book Economy, and land on a status URL that shows the same fare. The running API needs network access to the OSRM demo, and the browser needs OpenFreeMap.
 
 ## Commands
 

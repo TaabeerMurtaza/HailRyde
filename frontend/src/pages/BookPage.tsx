@@ -246,7 +246,7 @@ export function BookPage() {
               <div>
                 <dt className="inline">Fare </dt>
                 <dd className="inline">
-                  {quote.fare_amount} {quote.currency}
+                  <span data-testid="quote-fare">{quote.fare_amount}</span> {quote.currency}
                 </dd>
               </div>
               <div>

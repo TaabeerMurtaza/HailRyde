@@ -28,7 +28,7 @@ Accounts, sessions, fares, idempotent create, and ride transitions are implement
 
 ## Nearby drivers
 
-Pickup ETA ranks `available` drivers in the ride category by haversine distance. Accept does not dispatch. It assigns the authenticated driver who calls `POST /api/rides/{id}/accept`, after checking that the driver is available and in the same category.
+Nearby-driver discovery for the pickup ETA is the OSRM table over `available` drivers in the ride category. The book and status screens use OpenFreeMap. The public OSRM demo has no uptime guarantee. Accept does not dispatch. It assigns the authenticated driver who calls `POST /api/rides/{id}/accept`, after checking that the driver is available and in the same category.
 
 In production, keep available drivers in a geo index. Offer the ride to the nearest eligible driver, and offer it to the next driver if that one does not accept in time.
 
@@ -45,7 +45,7 @@ flowchart LR
 
 ## Known limitations
 
-- Places are eight preset Lahore points. The status view draws those two points in an SVG. It is not a live map.
+- Routing uses the public OSRM demo, which has no uptime guarantee. When it fails, quotes return `route_unavailable` and the pickup ETA is null.
 - A driver accepts their own ride. The server does not dispatch the nearest driver.
 - The demo token lives in `localStorage`. A production client would use an httpOnly cookie.
 - The status page polls every 3 seconds. It does not use a push channel.

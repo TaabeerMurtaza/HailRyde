@@ -132,7 +132,7 @@ export function RideStatusPage() {
           <p>Pickup {ride.pickup.name}</p>
           <p>Destination {ride.destination.name}</p>
           <p>
-            Fare {ride.fare_amount} {ride.currency}
+            Fare <span data-testid="ride-fare">{ride.fare_amount}</span> {ride.currency}
           </p>
           <p>{ride.distance_km} km</p>
           <p>{ride.duration_min} min</p>
