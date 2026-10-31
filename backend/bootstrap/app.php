@@ -4,8 +4,10 @@ use App\Exceptions\ActiveRideExistsException;
 use App\Exceptions\ForbiddenException;
 use App\Exceptions\IdempotencyConflictException;
 use App\Exceptions\InvalidCredentialsException;
+use App\Exceptions\NoRouteException;
 use App\Exceptions\RideConflictException;
 use App\Exceptions\RideNotFoundException;
+use App\Exceptions\RouteUnavailableException;
 use App\Http\ApiError;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Application;
@@ -74,6 +76,18 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->render(function (RideNotFoundException $exception, Request $request) {
             if ($request->is('api/*')) {
                 return ApiError::response('not_found', $exception->getMessage(), status: 404);
+            }
+        });
+
+        $exceptions->render(function (NoRouteException $exception, Request $request) {
+            if ($request->is('api/*')) {
+                return ApiError::response('no_route', $exception->getMessage(), status: 422);
+            }
+        });
+
+        $exceptions->render(function (RouteUnavailableException $exception, Request $request) {
+            if ($request->is('api/*')) {
+                return ApiError::response('route_unavailable', $exception->getMessage(), status: 503);
             }
         });
     })->create();
