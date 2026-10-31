@@ -22,6 +22,8 @@ const EMPTY_ROUTE: LineString = { type: 'LineString', coordinates: [] }
 
 function dot(color: string, size: number): HTMLElement {
   const element = document.createElement('div')
+  element.dataset.pin = ''
+  element.style.pointerEvents = 'none'
   element.style.width = `${size}px`
   element.style.height = `${size}px`
   element.style.borderRadius = '9999px'
@@ -98,6 +100,10 @@ export function RideMap({ pickup, destination, user, drivers, route, interactive
     }
 
     const handler = (event: maplibregl.MapMouseEvent) => {
+      const target = event.originalEvent?.target
+      if (target instanceof Element && target.closest('[data-pin]')) {
+        return
+      }
       const { lat, lng } = event.lngLat
       if (pickupRef.current === null) {
         onPickupRef.current(lat, lng)
@@ -161,6 +167,7 @@ function pin(
   }
 
   const marker = new maplibregl.Marker({ color, draggable: interactive }).setLngLat([at.lng, at.lat]).addTo(map)
+  marker.getElement().dataset.pin = ''
   if (interactive) {
     marker.on('dragend', () => {
       const { lat, lng } = marker.getLngLat()

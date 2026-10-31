@@ -14,11 +14,14 @@ const rider = {
   driver_profile: null,
 }
 
-const mapClicks = vi.hoisted(() => [] as Array<(event: { lngLat: { lat: number; lng: number } }) => void>)
+type MapClick = { lngLat: { lat: number; lng: number }; originalEvent?: { target: EventTarget } }
+
+const mapClicks = vi.hoisted(() => [] as Array<(event: MapClick) => void>)
+const pinElements = vi.hoisted(() => [] as HTMLElement[])
 
 vi.mock('maplibre-gl', () => {
   class Map {
-    on(event: string, handler: (event: { lngLat: { lat: number; lng: number } }) => void) {
+    on(event: string, handler: (event: MapClick) => void) {
       if (event === 'click') {
         mapClicks.push(handler)
       }
@@ -40,6 +43,14 @@ vi.mock('maplibre-gl', () => {
   }
 
   class Marker {
+    element: HTMLElement
+    constructor(options?: { element?: HTMLElement }) {
+      this.element = options?.element ?? document.createElement('div')
+      pinElements.push(this.element)
+    }
+    getElement() {
+      return this.element
+    }
     setLngLat() {
       return this
     }
@@ -244,4 +255,32 @@ it('uses a granted position inside Lahore as the pickup', async () => {
   renderBook()
 
   expect(await screen.findByText('Pickup 31.520400, 74.358700')).toBeVisible()
+})
+
+it('ignores a map click whose target is inside a pin', async () => {
+  grantLocation()
+  vi.stubGlobal(
+    'fetch',
+    vi.fn((input: RequestInfo | URL) => {
+      const path = pathOf(input)
+      if (path === '/api/me') return Promise.resolve(jsonResponse({ user: rider }))
+      if (path === '/api/drivers') return Promise.resolve(jsonResponse({ drivers: [] }))
+      return Promise.reject(new Error(`unmocked ${path}`))
+    }),
+  )
+
+  renderBook()
+  await screen.findByText('Pickup 31.520400, 74.358700')
+
+  const pinElement = pinElements.find((element) => 'pin' in element.dataset)
+  expect(pinElement).toBeDefined()
+  const inner = document.createElement('span')
+  pinElement?.appendChild(inner)
+
+  mapClicks.at(-1)?.({ lngLat: { lat: 31.5216, lng: 74.4036 }, originalEvent: { target: inner } })
+  await new Promise((resolve) => setTimeout(resolve, 50))
+  expect(screen.getByText('Destination not set')).toBeVisible()
+
+  mapClicks.at(-1)?.({ lngLat: { lat: 31.5216, lng: 74.4036 }, originalEvent: { target: document.body } })
+  expect(await screen.findByText('Destination 31.521600, 74.403600')).toBeVisible()
 })
