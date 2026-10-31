@@ -15,3 +15,27 @@ function registration(array $overrides = []): array
         'role' => 'rider',
     ], $overrides);
 }
+
+function fareFromRoute(float $meters, float $seconds, int $base, int $perKm, int $perMin): array
+{
+    $distanceKm = round($meters / 1000, 2);
+    $durationMin = max(1, (int) round($seconds / 60));
+    $fare = round($base + ($perKm * $distanceKm) + ($perMin * $durationMin), 2);
+
+    return [
+        'distance_km' => number_format($distanceKm, 2, '.', ''),
+        'duration_min' => $durationMin,
+        'fare_amount' => number_format($fare, 2, '.', ''),
+    ];
+}
+
+function tripBody(array $overrides = []): array
+{
+    return array_merge([
+        'pickup_lat' => 31.5204,
+        'pickup_lng' => 74.3587,
+        'destination_lat' => 31.5216,
+        'destination_lng' => 74.4036,
+        'category' => 'economy',
+    ], $overrides);
+}

@@ -7,9 +7,9 @@ use App\Exceptions\ForbiddenException;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\RideResource;
 use App\Models\User;
+use App\Rides\RidePoints;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class CreateRideController extends Controller
@@ -23,13 +23,8 @@ class CreateRideController extends Controller
             throw new ForbiddenException;
         }
 
-        $placeIds = array_keys(config('rides.places'));
-
-        $data = $request->validate([
-            'pickup_place_id' => ['required', 'string', Rule::in($placeIds)],
-            'destination_place_id' => ['required', 'string', 'different:pickup_place_id', Rule::in($placeIds)],
-            'category' => ['required', 'string', Rule::in(array_keys(config('rides.categories')))],
-        ]);
+        $data = $request->validate(RidePoints::rules());
+        $points = RidePoints::fromValidated($data);
 
         $idempotencyKey = $request->headers->get('Idempotency-Key');
 
@@ -39,7 +34,7 @@ class CreateRideController extends Controller
             ]);
         }
 
-        $result = $create($user, $idempotencyKey, $data);
+        $result = $create($user, $idempotencyKey, $points['pickup'], $points['destination'], $data['category']);
 
         return response()->json([
             'ride' => (new RideResource($result['ride']))->resolve(),

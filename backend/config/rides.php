@@ -4,9 +4,12 @@ return [
 
     'currency' => 'PKR',
 
-    'speed_kmh' => 25,
-
-    'earth_radius_km' => 6371,
+    'bounds' => [
+        'south' => 31.3,
+        'north' => 31.7,
+        'west' => 74.1,
+        'east' => 74.55,
+    ],
 
     'categories' => [
         'economy' => ['base' => 150, 'per_km' => 45, 'per_min' => 5],

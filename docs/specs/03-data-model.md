@@ -29,6 +29,7 @@ Index `driver_profiles (status, category)`.
 - `duration_min` integer
 - `pickup_eta_min` integer null
 - `fare_amount` numeric(10,2)
+- `route` json null, the GeoJSON `LineString` of the driving route saved at create time
 - `idempotency_key` text not null
 - `request_hash` text not null
 - `accepted_at`, `cancelled_at`, `completed_at` timestamptz null
@@ -49,17 +50,14 @@ Constraints and indexes:
 
 Sanctum `personal_access_tokens` as published by the package.
 
-## Places
+## Map points
 
-Places are code, not a table. Ids and coordinates:
+Places are not stored. A pickup or destination is a map point the rider chooses.
 
-- `gulberg` — Gulberg — 31.520400, 74.358700
-- `liberty` — Liberty — 31.510100, 74.343600
-- `dha-phase-5` — DHA Phase 5 — 31.461800, 74.406600
-- `model-town` — Model Town — 31.483600, 74.316600
-- `airport` — Allama Iqbal Airport — 31.521600, 74.403600
-- `johar-town` — Johar Town — 31.469700, 74.272800
-- `anarkali` — Anarkali — 31.568900, 74.309500
-- `cantt` — Lahore Cantt — 31.524600, 74.379000
+- Bookable area: south 31.300000, north 31.700000, west 74.100000, east 74.550000. Coordinates outside it are validation errors.
+- Each coordinate is rounded to 6 decimal places before it is hashed, stored, or compared.
+- `place_id` is `{lat},{lng}` with both values at 6 decimal places, for example `31.520400,74.358700`.
+- `name` is `{lat}, {lng}`, for example `31.520400, 74.358700`.
+- `rides.route` is nullable JSON. Rows written before routes existed have no route.
 
-Unknown place ids are validation errors.
+New drivers still start at Gulberg 31.520400, 74.358700, as the auth spec says.

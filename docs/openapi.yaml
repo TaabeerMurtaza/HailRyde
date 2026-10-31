@@ -119,12 +119,16 @@ paths:
           application/json:
             schema:
               type: object
-              required: [pickup_place_id, destination_place_id, category]
+              required: [pickup_lat, pickup_lng, destination_lat, destination_lng, category]
               properties:
-                pickup_place_id:
-                  type: string
-                destination_place_id:
-                  type: string
+                pickup_lat:
+                  type: number
+                pickup_lng:
+                  type: number
+                destination_lat:
+                  type: number
+                destination_lng:
+                  type: number
                 category:
                   $ref: '#/components/schemas/Category'
       responses:
@@ -137,7 +141,9 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthenticated'
         '422':
-          $ref: '#/components/responses/ValidationError'
+          $ref: '#/components/responses/ValidationOrNoRoute'
+        '503':
+          $ref: '#/components/responses/RouteUnavailable'
   /api/rides:
     get:
       summary: List rides for the signed-in rider or driver
@@ -179,12 +185,16 @@ paths:
           application/json:
             schema:
               type: object
-              required: [pickup_place_id, destination_place_id, category]
+              required: [pickup_lat, pickup_lng, destination_lat, destination_lng, category]
               properties:
-                pickup_place_id:
-                  type: string
-                destination_place_id:
-                  type: string
+                pickup_lat:
+                  type: number
+                pickup_lng:
+                  type: number
+                destination_lat:
+                  type: number
+                destination_lng:
+                  type: number
                 category:
                   $ref: '#/components/schemas/Category'
       responses:
@@ -211,7 +221,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
         '422':
-          $ref: '#/components/responses/ValidationError'
+          $ref: '#/components/responses/ValidationOrNoRoute'
+        '503':
+          $ref: '#/components/responses/RouteUnavailable'
   /api/rides/{id}:
     get:
       summary: Ride details
@@ -330,6 +342,28 @@ components:
               details:
                 email:
                   - The email has already been taken.
+    ValidationOrNoRoute:
+      description: Invalid input (including the same pin or coordinates outside the bookable area), or no road joins the points (code no_route)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: no_route
+              message: Those points are not connected by a road.
+              details: {}
+    RouteUnavailable:
+      description: The road router timed out, could not be reached, or failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: route_unavailable
+              message: Road routing is unavailable.
+              details: {}
     Unauthenticated:
       description: Missing or invalid bearer token
       content:
@@ -467,9 +501,25 @@ components:
           type: string
         lng:
           type: string
+    LineString:
+      type: object
+      required: [type, coordinates]
+      properties:
+        type:
+          type: string
+          enum: [LineString]
+        coordinates:
+          type: array
+          description: Positions as [lng, lat]
+          items:
+            type: array
+            minItems: 2
+            maxItems: 2
+            items:
+              type: number
     Estimate:
       type: object
-      required: [distance_km, duration_min, fare_amount, currency, pickup_eta_min]
+      required: [distance_km, duration_min, fare_amount, currency, pickup_eta_min, route]
       properties:
         distance_km:
           type: string
@@ -483,9 +533,11 @@ components:
         pickup_eta_min:
           type: integer
           nullable: true
+        route:
+          $ref: '#/components/schemas/LineString'
     Ride:
       type: object
-      required: [id, status, category, pickup, destination, distance_km, duration_min, pickup_eta_min, fare_amount, currency, rider, driver, accepted_at, cancelled_at, completed_at]
+      required: [id, status, category, pickup, destination, distance_km, duration_min, pickup_eta_min, fare_amount, currency, route, rider, driver, accepted_at, cancelled_at, completed_at]
       properties:
         id:
           type: integer
@@ -509,6 +561,10 @@ components:
         currency:
           type: string
           enum: [PKR]
+        route:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/LineString'
         rider:
           type: object
           required: [id, name, phone]
@@ -522,7 +578,7 @@ components:
         driver:
           nullable: true
           type: object
-          required: [id, name, phone, plate, category]
+          required: [id, name, phone, plate, category, lat, lng]
           properties:
             id:
               type: integer
@@ -534,6 +590,10 @@ components:
               type: string
             category:
               $ref: '#/components/schemas/Category'
+            lat:
+              type: string
+            lng:
+              type: string
         accepted_at:
           type: string
           format: date-time

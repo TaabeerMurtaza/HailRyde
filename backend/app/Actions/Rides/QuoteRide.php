@@ -2,26 +2,29 @@
 
 namespace App\Actions\Rides;
 
+use App\Exceptions\NoRouteException;
+use App\Exceptions\RouteUnavailableException;
 use App\Models\DriverProfile;
+use App\Rides\MapPoint;
+use App\Rides\RoadRouter;
 
 class QuoteRide
 {
+    public function __construct(private RoadRouter $router) {}
+
     /**
-     * @return array{distance_km: string, duration_min: int, fare_amount: string, currency: string, pickup_eta_min: int|null}
+     * @return array{distance_km: string, duration_min: int, fare_amount: string, currency: string, pickup_eta_min: int|null, route: array<string, mixed>}
      */
-    public function __invoke(string $pickupPlaceId, string $destinationPlaceId, string $category): array
+    public function __invoke(MapPoint $pickup, MapPoint $destination, string $category): array
     {
-        $places = config('rides.places');
-        $pickup = $places[$pickupPlaceId];
-        $destination = $places[$destinationPlaceId];
-        $speed = (float) config('rides.speed_kmh');
-        $distanceKm = round($this->haversineKm(
-            (float) $pickup['lat'],
-            (float) $pickup['lng'],
-            (float) $destination['lat'],
-            (float) $destination['lng'],
-        ), 2);
-        $durationMin = max(1, (int) round($distanceKm / $speed * 60));
+        $trip = $this->router->drive(
+            (float) $pickup->lat,
+            (float) $pickup->lng,
+            (float) $destination->lat,
+            (float) $destination->lng,
+        );
+        $distanceKm = round($trip['distance_m'] / 1000, 2);
+        $durationMin = max(1, (int) round($trip['duration_s'] / 60));
         $rates = config('rides.categories.'.$category);
         $fare = round($rates['base'] + ($rates['per_km'] * $distanceKm) + ($rates['per_min'] * $durationMin), 2);
 
@@ -30,49 +33,39 @@ class QuoteRide
             'duration_min' => $durationMin,
             'fare_amount' => $this->money($fare),
             'currency' => config('rides.currency'),
-            'pickup_eta_min' => $this->pickupEtaMin(
-                (float) $pickup['lat'],
-                (float) $pickup['lng'],
-                $category,
-                $speed,
-            ),
+            'pickup_eta_min' => $this->pickupEtaMin($pickup, $category),
+            'route' => $trip['geometry'],
         ];
     }
 
-    private function pickupEtaMin(float $lat, float $lng, string $category, float $speed): ?int
+    private function pickupEtaMin(MapPoint $pickup, string $category): ?int
     {
-        $nearestKm = null;
-
         $drivers = DriverProfile::query()
             ->where('status', 'available')
             ->where('category', $category)
             ->get(['lat', 'lng']);
 
-        foreach ($drivers as $driver) {
-            $km = $this->haversineKm($lat, $lng, (float) $driver->lat, (float) $driver->lng);
-
-            if ($nearestKm === null || $km < $nearestKm) {
-                $nearestKm = $km;
-            }
-        }
-
-        if ($nearestKm === null) {
+        if ($drivers->isEmpty()) {
             return null;
         }
 
-        return max(3, (int) ceil($nearestKm / $speed * 60));
-    }
+        $origins = $drivers
+            ->map(fn (DriverProfile $driver) => ['lat' => (float) $driver->lat, 'lng' => (float) $driver->lng])
+            ->all();
 
-    private function haversineKm(float $lat1, float $lng1, float $lat2, float $lng2): float
-    {
-        $radius = (float) config('rides.earth_radius_km');
-        $latFrom = deg2rad($lat1);
-        $latTo = deg2rad($lat2);
-        $latDelta = $latTo - $latFrom;
-        $lngDelta = deg2rad($lng2 - $lng1);
-        $a = sin($latDelta / 2) ** 2 + cos($latFrom) * cos($latTo) * sin($lngDelta / 2) ** 2;
+        try {
+            $seconds = $this->router->durationsTo($origins, (float) $pickup->lat, (float) $pickup->lng);
+        } catch (NoRouteException|RouteUnavailableException) {
+            return null;
+        }
 
-        return $radius * (2 * atan2(sqrt($a), sqrt(1 - $a)));
+        $finite = array_filter($seconds, fn ($value) => is_float($value) && is_finite($value));
+
+        if ($finite === []) {
+            return null;
+        }
+
+        return max(3, (int) ceil(min($finite) / 60));
     }
 
     private function money(float $amount): string

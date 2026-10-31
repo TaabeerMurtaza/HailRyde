@@ -38,6 +38,7 @@ class RideResource extends JsonResource
             'pickup_eta_min' => $this->pickup_eta_min,
             'fare_amount' => $this->fare_amount,
             'currency' => config('rides.currency'),
+            'route' => $this->route,
             'rider' => $this->person($this->rider),
             'driver' => $this->driver(),
             'accepted_at' => $this->accepted_at?->toJSON(),
@@ -63,7 +64,7 @@ class RideResource extends JsonResource
     }
 
     /**
-     * @return array{id: int, name: string, phone: string, plate: string, category: string}|null
+     * @return array{id: int, name: string, phone: string, plate: string, category: string, lat: string, lng: string}|null
      */
     private function driver(): ?array
     {
@@ -81,6 +82,8 @@ class RideResource extends JsonResource
             'phone' => $driver->phone,
             'plate' => $profile->plate,
             'category' => $profile->category,
+            'lat' => $profile->lat,
+            'lng' => $profile->lng,
         ];
     }
 }

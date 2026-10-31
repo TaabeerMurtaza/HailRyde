@@ -20,11 +20,11 @@ Error body:
 - `POST /api/logout` — `204`.
 - `GET /api/me` — `{ "user": User }`.
 - `GET /api/places` — `{ "places": [ { "id", "name", "lat", "lng" } ] }`.
-- `POST /api/estimates` — body `pickup_place_id`, `destination_place_id`, `category`. `200` `{ "distance_km", "duration_min", "fare_amount", "currency": "PKR", "pickup_eta_min" }`. Same place twice is `422`.
+- `POST /api/estimates` — body `pickup_lat`, `pickup_lng`, `destination_lat`, `destination_lng` (numbers), `category`. `200` `{ "distance_km", "duration_min", "fare_amount", "currency": "PKR", "pickup_eta_min", "route" }`. `route` is a GeoJSON `LineString` with `[lng, lat]` positions. `422` for the same pin after 6-decimal rounding and for coordinates outside the bookable area. `422` code `no_route` with message `Those points are not connected by a road.` when no road joins the points. `503` code `route_unavailable` with message `Road routing is unavailable.` when the router cannot be used.
 
 ## Rides
 
-`POST /api/rides` — rider only. Header `Idempotency-Key`. Body `pickup_place_id`, `destination_place_id`, `category`. `201` on create, `200` on idempotent replay, `409` for `idempotency_conflict` or `active_ride_exists`, `422` for invalid input, `403` for a driver.
+`POST /api/rides` — rider only. Header `Idempotency-Key`. Body `pickup_lat`, `pickup_lng`, `destination_lat`, `destination_lng`, `category`. `201` on create, `200` on idempotent replay, `409` for `idempotency_conflict` or `active_ride_exists`, `422` for invalid input (including the same pin and coordinates outside the bookable area), `422` `no_route`, `503` `route_unavailable`, `403` for a driver.
 
 `GET /api/rides/{id}` — rider owner, the assigned driver, or a driver whose category matches a still-`requested` ride. Anyone else gets `403`. Unknown id is `404` code `not_found`.
 
@@ -49,13 +49,14 @@ Error body:
   "id": 1,
   "status": "requested",
   "category": "economy",
-  "pickup": { "id": "gulberg", "name": "Gulberg", "lat": "31.520400", "lng": "74.358700" },
-  "destination": { "id": "airport", "name": "Allama Iqbal Airport", "lat": "31.521600", "lng": "74.403600" },
+  "pickup": { "id": "31.520400,74.358700", "name": "31.520400, 74.358700", "lat": "31.520400", "lng": "74.358700" },
+  "destination": { "id": "31.521600,74.403600", "name": "31.521600, 74.403600", "lat": "31.521600", "lng": "74.403600" },
   "distance_km": "4.21",
   "duration_min": 10,
   "pickup_eta_min": 3,
   "fare_amount": "389.45",
   "currency": "PKR",
+  "route": { "type": "LineString", "coordinates": [[74.358700, 31.520400], [74.403600, 31.521600]] },
   "rider": { "id": 1, "name": "Ayesha Khan", "phone": "03000000001" },
   "driver": null,
   "accepted_at": null,
@@ -64,6 +65,6 @@ Error body:
 }
 ```
 
-Numeric money and coordinates are JSON strings from `numeric` casts so values stay exact. `driver` is null until accepted, then `{ "id", "name", "phone", "plate", "category" }`. `pickup_eta_min` is null when no available driver matched at create time.
+Numeric money and coordinates are JSON strings from `numeric` casts so values stay exact. `driver` is null until accepted, then `{ "id", "name", "phone", "plate", "category", "lat", "lng" }` with `lat` and `lng` as strings. `route` is the GeoJSON `LineString` saved at create time, or null for a ride that has none. `pickup_eta_min` is null when no available driver matched at create time.
 
 Wrap a single ride as `{ "ride": Ride }`. Wrap a list as `{ "rides": [Ride] }`.

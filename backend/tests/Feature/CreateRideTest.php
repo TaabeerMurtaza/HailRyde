@@ -8,18 +8,10 @@ it('creates a requested ride for a rider and ignores a client fare', function ()
     Event::fake([MessageLogged::class]);
 
     $token = $this->postJson('/api/register', registration())->assertCreated()->json('token');
-    $expected = quotedFare(31.520400, 74.358700, 31.521600, 74.403600, 150, 45, 5);
-
-    expect($expected)->toBe([
-        'distance_km' => '4.26',
-        'duration_min' => 10,
-        'fare_amount' => '391.70',
-    ]);
+    $expected = fareFromRoute(4200, 600, 150, 45, 5);
 
     $response = $this->withToken($token)->postJson('/api/rides', [
-        'pickup_place_id' => 'gulberg',
-        'destination_place_id' => 'airport',
-        'category' => 'economy',
+        ...tripBody(),
         'fare_amount' => '1.00',
     ], ['Idempotency-Key' => 'ride-1'])->assertCreated();
 
@@ -32,12 +24,13 @@ it('creates a requested ride for a rider and ignores a client fare', function ()
         ->assertJsonPath('ride.pickup_eta_min', null)
         ->assertJsonPath('ride.driver', null)
         ->assertJsonPath('ride.pickup', [
-            'id' => 'gulberg',
-            'name' => 'Gulberg',
+            'id' => '31.520400,74.358700',
+            'name' => '31.520400, 74.358700',
             'lat' => '31.520400',
             'lng' => '74.358700',
         ])
-        ->assertJsonPath('ride.destination.name', 'Allama Iqbal Airport')
+        ->assertJsonPath('ride.destination.name', '31.521600, 74.403600')
+        ->assertJsonPath('ride.route.type', 'LineString')
         ->assertJsonPath('ride.rider.name', 'Ayesha Khan')
         ->assertJsonPath('ride.rider.phone', '03000000001')
         ->assertJsonPath('ride.accepted_at', null)
@@ -46,6 +39,16 @@ it('creates a requested ride for a rider and ignores a client fare', function ()
 
     expect(Ride::query()->count())->toBe(1)
         ->and(Ride::query()->value('fare_amount'))->toBe($expected['fare_amount']);
+
+    $canonical = json_encode([
+        'pickup_lat' => '31.520400',
+        'pickup_lng' => '74.358700',
+        'destination_lat' => '31.521600',
+        'destination_lng' => '74.403600',
+        'category' => 'economy',
+    ], JSON_THROW_ON_ERROR);
+
+    expect(Ride::query()->value('request_hash'))->toBe(hash('sha256', $canonical));
 
     $rideId = $response->json('ride.id');
 
@@ -63,11 +66,7 @@ it('forbids a driver from creating a ride', function () {
         'category' => 'economy',
     ]))->assertCreated()->json('token');
 
-    $this->withToken($token)->postJson('/api/rides', [
-        'pickup_place_id' => 'gulberg',
-        'destination_place_id' => 'airport',
-        'category' => 'economy',
-    ], ['Idempotency-Key' => 'ride-1'])
+    $this->withToken($token)->postJson('/api/rides', tripBody(), ['Idempotency-Key' => 'ride-1'])
         ->assertForbidden()
         ->assertJsonPath('error.code', 'forbidden')
         ->assertJsonPath('error.message', 'Forbidden.')
@@ -87,29 +86,17 @@ it('rejects invalid ride input', function (array $body, array $headers, string $
 
     expect(Ride::query()->count())->toBe(0);
 })->with([
-    'invalid body' => [[
-        'destination_place_id' => 'airport',
-        'category' => 'economy',
-    ], ['Idempotency-Key' => 'ride-1'], 'pickup_place_id'],
-    'same place' => [[
-        'pickup_place_id' => 'gulberg',
-        'destination_place_id' => 'gulberg',
-        'category' => 'economy',
-    ], ['Idempotency-Key' => 'ride-1'], 'destination_place_id'],
-    'missing key' => [[
-        'pickup_place_id' => 'gulberg',
-        'destination_place_id' => 'airport',
-        'category' => 'economy',
-    ], [], 'Idempotency-Key'],
+    'invalid body' => [tripBody(['pickup_lat' => null]), ['Idempotency-Key' => 'ride-1'], 'pickup_lat'],
+    'same place' => [tripBody([
+        'destination_lat' => 31.5204,
+        'destination_lng' => 74.3587,
+    ]), ['Idempotency-Key' => 'ride-1'], 'destination_lat'],
+    'missing key' => [tripBody(), [], 'Idempotency-Key'],
 ]);
 
 it('returns the original ride when the same idempotency key and body are repeated', function () {
     $token = $this->postJson('/api/register', registration())->assertCreated()->json('token');
-    $body = [
-        'pickup_place_id' => 'gulberg',
-        'destination_place_id' => 'airport',
-        'category' => 'economy',
-    ];
+    $body = tripBody();
 
     $created = $this->withToken($token)->postJson('/api/rides', $body, ['Idempotency-Key' => 'ride-1'])
         ->assertCreated()
@@ -126,17 +113,9 @@ it('returns the original ride when the same idempotency key and body are repeate
 it('returns idempotency_conflict when the same key is sent with a different destination', function () {
     $token = $this->postJson('/api/register', registration())->assertCreated()->json('token');
 
-    $this->withToken($token)->postJson('/api/rides', [
-        'pickup_place_id' => 'gulberg',
-        'destination_place_id' => 'airport',
-        'category' => 'economy',
-    ], ['Idempotency-Key' => 'ride-1'])->assertCreated();
+    $this->withToken($token)->postJson('/api/rides', tripBody(), ['Idempotency-Key' => 'ride-1'])->assertCreated();
 
-    $this->withToken($token)->postJson('/api/rides', [
-        'pickup_place_id' => 'gulberg',
-        'destination_place_id' => 'liberty',
-        'category' => 'economy',
-    ], ['Idempotency-Key' => 'ride-1'])
+    $this->withToken($token)->postJson('/api/rides', tripBody(['destination_lat' => 31.5101, 'destination_lng' => 74.3436]), ['Idempotency-Key' => 'ride-1'])
         ->assertStatus(409)
         ->assertJsonPath('error.code', 'idempotency_conflict')
         ->assertJsonPath('error.details', []);
@@ -148,11 +127,7 @@ it('returns active_ride_exists when the rider already has a requested or accepte
     $registered = $this->postJson('/api/register', registration())->assertCreated();
     $existing = Ride::query()->create(rideRow($registered->json('user.id'), $status, 'existing-key'));
 
-    $this->withToken($registered->json('token'))->postJson('/api/rides', [
-        'pickup_place_id' => 'gulberg',
-        'destination_place_id' => 'liberty',
-        'category' => 'comfort',
-    ], ['Idempotency-Key' => 'new-key'])
+    $this->withToken($registered->json('token'))->postJson('/api/rides', tripBody(['category' => 'comfort']), ['Idempotency-Key' => 'new-key'])
         ->assertStatus(409)
         ->assertJsonPath('error.code', 'active_ride_exists')
         ->assertJsonPath('error.message', 'An active ride already exists.')

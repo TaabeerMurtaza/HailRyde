@@ -1,70 +1,56 @@
 <?php
 
+use App\Exceptions\NoRouteException;
+use App\Exceptions\RouteUnavailableException;
 use App\Models\DriverProfile;
 use App\Models\Ride;
 use App\Models\User;
+use App\Rides\FakeRoadRouter;
+use App\Rides\RoadRouter;
 use Illuminate\Database\QueryException;
 
-it('lists the preset places for a signed-in rider or driver', function (string $role) {
-    $token = $this->postJson('/api/register', registration([
-        'role' => $role,
-        'plate' => 'LEA-1001',
-        'category' => 'economy',
-    ]))->assertCreated()->json('token');
-
-    $response = $this->withToken($token)->getJson('/api/places')->assertOk();
-
-    $places = $response->json('places');
-
-    expect($places)->toHaveCount(8)
-        ->and($places[0])->toBe([
-            'id' => 'gulberg',
-            'name' => 'Gulberg',
-            'lat' => '31.520400',
-            'lng' => '74.358700',
-        ])
-        ->and($places[4]['id'])->toBe('airport')
-        ->and($places[4]['name'])->toBe('Allama Iqbal Airport');
-})->with(['rider', 'driver']);
-
-it('prices Gulberg to Airport from the documented formula', function (string $category, int $base, int $perKm, int $perMin) {
+it('prices a road route from the documented formula and ignores a client fare', function (string $category, int $base, int $perKm, int $perMin) {
     $token = $this->postJson('/api/register', registration())->assertCreated()->json('token');
-
-    $expected = quotedFare(31.520400, 74.358700, 31.521600, 74.403600, $base, $perKm, $perMin);
+    $expected = fareFromRoute(4200, 600, $base, $perKm, $perMin);
 
     if ($category === 'economy') {
         expect($expected)->toBe([
-            'distance_km' => '4.26',
+            'distance_km' => '4.20',
             'duration_min' => 10,
-            'fare_amount' => '391.70',
+            'fare_amount' => '389.00',
         ]);
     }
 
     $this->withToken($token)->postJson('/api/estimates', [
-        'pickup_place_id' => 'gulberg',
-        'destination_place_id' => 'airport',
-        'category' => $category,
+        ...tripBody(['category' => $category]),
         'fare_amount' => '1.00',
     ])->assertOk()
         ->assertExactJson([
             ...$expected,
             'currency' => 'PKR',
             'pickup_eta_min' => null,
+            'route' => [
+                'type' => 'LineString',
+                'coordinates' => [[74.3587, 31.5204], [74.4036, 31.5216]],
+            ],
         ]);
 })->with([
     'economy' => ['economy', 150, 45, 5],
     'comfort' => ['comfort', 250, 70, 8],
 ]);
 
-it('sets pickup eta from the nearest available driver in the same category', function () {
-    $rider = $this->postJson('/api/register', registration())->assertCreated()->json('token');
+it('sets pickup eta from the shortest road time to an available driver in the same category', function () {
+    $router = new FakeRoadRouter(driverSeconds: [240, 900]);
+    $this->app->instance(RoadRouter::class, $router);
 
-    $near = $this->postJson('/api/register', registration([
+    $token = $this->postJson('/api/register', registration())->assertCreated()->json('token');
+
+    $this->postJson('/api/register', registration([
         'email' => 'near@example.com',
         'role' => 'driver',
         'plate' => 'LEA-1001',
         'category' => 'economy',
-    ]))->assertCreated()->json('user');
+    ]))->assertCreated();
 
     $this->postJson('/api/register', registration([
         'email' => 'far@example.com',
@@ -80,81 +66,73 @@ it('sets pickup eta from the nearest available driver in the same category', fun
         'category' => 'comfort',
     ]))->assertCreated();
 
-    $this->postJson('/api/register', registration([
+    $offline = $this->postJson('/api/register', registration([
         'email' => 'offline@example.com',
         'role' => 'driver',
         'plate' => 'LEA-1003',
         'category' => 'economy',
-    ]))->assertCreated();
+    ]))->assertCreated()->json('user');
 
-    DriverProfile::query()->where('user_id', $near['id'])->update([
-        'lat' => '31.520400',
-        'lng' => '74.358700',
-    ]);
-    DriverProfile::query()->where('plate', 'LEA-1002')->update([
-        'lat' => '31.469700',
-        'lng' => '74.272800',
-        'status' => 'available',
-    ]);
-    DriverProfile::query()->where('plate', 'LEA-1003')->update(['status' => 'offline']);
+    DriverProfile::query()->where('user_id', $offline['id'])->update(['status' => 'offline']);
 
-    $this->withToken($rider)->postJson('/api/estimates', [
-        'pickup_place_id' => 'gulberg',
-        'destination_place_id' => 'airport',
-        'category' => 'economy',
-    ])->assertOk()
-        ->assertJsonPath('pickup_eta_min', 3);
+    $this->withToken($token)->postJson('/api/estimates', tripBody())
+        ->assertOk()
+        ->assertJsonPath('pickup_eta_min', 4);
 
-    DriverProfile::query()->where('plate', 'LEA-1001')->update(['status' => 'on_trip']);
-
-    $eta = max(3, (int) ceil(haversineKm(31.520400, 74.358700, 31.469700, 74.272800) / 25 * 60));
-
-    $this->withToken($rider)->postJson('/api/estimates', [
-        'pickup_place_id' => 'gulberg',
-        'destination_place_id' => 'airport',
-        'category' => 'economy',
-    ])->assertOk()
-        ->assertJsonPath('pickup_eta_min', $eta);
-
-    expect($eta)->toBeGreaterThan(3);
+    expect($router->lastOriginCount)->toBe(2);
 });
 
-it('rejects the same place twice and unknown place ids', function (array $body, string $field) {
+it('does not ask the router for driver times when no driver is available', function () {
+    $router = Mockery::mock(RoadRouter::class);
+    $router->shouldReceive('drive')->once()->andReturn((new FakeRoadRouter)->drive(31.5204, 74.3587, 31.5216, 74.4036));
+    $router->shouldNotReceive('durationsTo');
+    $this->app->instance(RoadRouter::class, $router);
+
+    $token = $this->postJson('/api/register', registration())->assertCreated()->json('token');
+
+    $this->withToken($token)->postJson('/api/estimates', tripBody())
+        ->assertOk()
+        ->assertJsonPath('pickup_eta_min', null);
+});
+
+it('rejects coordinates outside Lahore and a repeated pin', function (array $body, string $field) {
     $token = $this->postJson('/api/register', registration())->assertCreated()->json('token');
 
     $this->withToken($token)->postJson('/api/estimates', $body)
         ->assertUnprocessable()
         ->assertJsonPath('error.code', 'validation_error')
-        ->assertJsonPath('error.message', 'The given data was invalid.')
         ->assertJsonStructure(['error' => ['details' => [$field]]]);
 })->with([
-    'same place' => [[
-        'pickup_place_id' => 'gulberg',
-        'destination_place_id' => 'gulberg',
-        'category' => 'economy',
-    ], 'destination_place_id'],
-    'unknown pickup' => [[
-        'pickup_place_id' => 'mall-road',
-        'destination_place_id' => 'airport',
-        'category' => 'economy',
-    ], 'pickup_place_id'],
-    'unknown destination' => [[
-        'pickup_place_id' => 'gulberg',
-        'destination_place_id' => 'mall-road',
-        'category' => 'economy',
-    ], 'destination_place_id'],
+    'outside' => [tripBody(['pickup_lat' => 30]), 'pickup_lat'],
+    'same pin' => [tripBody([
+        'destination_lat' => 31.5204,
+        'destination_lng' => 74.3587,
+    ]), 'destination_lat'],
 ]);
 
-it('requires auth for places and estimates', function () {
-    $this->getJson('/api/places')
-        ->assertUnauthorized()
-        ->assertJsonPath('error.code', 'unauthenticated');
+it('returns no_route when the driving path does not exist', function () {
+    $this->app->instance(RoadRouter::class, new FakeRoadRouter(driveFailure: new NoRouteException));
+    $token = $this->postJson('/api/register', registration())->assertCreated()->json('token');
 
-    $this->postJson('/api/estimates', [
-        'pickup_place_id' => 'gulberg',
-        'destination_place_id' => 'airport',
-        'category' => 'economy',
-    ])->assertUnauthorized()
+    $this->withToken($token)->postJson('/api/estimates', tripBody())
+        ->assertUnprocessable()
+        ->assertJsonPath('error.code', 'no_route')
+        ->assertJsonPath('error.message', 'Those points are not connected by a road.');
+});
+
+it('returns route_unavailable when the router cannot be reached', function () {
+    $this->app->instance(RoadRouter::class, new FakeRoadRouter(driveFailure: new RouteUnavailableException));
+    $token = $this->postJson('/api/register', registration())->assertCreated()->json('token');
+
+    $this->withToken($token)->postJson('/api/estimates', tripBody())
+        ->assertStatus(503)
+        ->assertJsonPath('error.code', 'route_unavailable')
+        ->assertJsonPath('error.message', 'Road routing is unavailable.');
+});
+
+it('requires auth for estimates', function () {
+    $this->postJson('/api/estimates', tripBody())
+        ->assertUnauthorized()
         ->assertJsonPath('error.code', 'unauthenticated');
 });
 
@@ -182,30 +160,6 @@ it('allows one active ride per rider and one assignment per ride', function () {
         'assigned_at' => now(),
     ]))->toThrow(QueryException::class);
 });
-
-function quotedFare(float $lat1, float $lng1, float $lat2, float $lng2, int $base, int $perKm, int $perMin): array
-{
-    $distanceKm = round(haversineKm($lat1, $lng1, $lat2, $lng2), 2);
-    $durationMin = max(1, (int) round($distanceKm / 25 * 60));
-    $fare = round($base + ($perKm * $distanceKm) + ($perMin * $durationMin), 2);
-
-    return [
-        'distance_km' => number_format($distanceKm, 2, '.', ''),
-        'duration_min' => $durationMin,
-        'fare_amount' => number_format($fare, 2, '.', ''),
-    ];
-}
-
-function haversineKm(float $lat1, float $lng1, float $lat2, float $lng2): float
-{
-    $latFrom = deg2rad($lat1);
-    $latTo = deg2rad($lat2);
-    $latDelta = $latTo - $latFrom;
-    $lngDelta = deg2rad($lng2 - $lng1);
-    $a = sin($latDelta / 2) ** 2 + cos($latFrom) * cos($latTo) * sin($lngDelta / 2) ** 2;
-
-    return 6371 * (2 * atan2(sqrt($a), sqrt(1 - $a)));
-}
 
 /**
  * @return array<string, mixed>

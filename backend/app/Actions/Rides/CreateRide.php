@@ -6,6 +6,7 @@ use App\Exceptions\ActiveRideExistsException;
 use App\Exceptions\IdempotencyConflictException;
 use App\Models\Ride;
 use App\Models\User;
+use App\Rides\MapPoint;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -15,16 +16,15 @@ class CreateRide
     public function __construct(private QuoteRide $quote) {}
 
     /**
-     * @param  array{pickup_place_id: string, destination_place_id: string, category: string}  $input
      * @return array{ride: Ride, created: bool}
      */
-    public function __invoke(User $rider, string $idempotencyKey, array $input): array
+    public function __invoke(User $rider, string $idempotencyKey, MapPoint $pickup, MapPoint $destination, string $category): array
     {
-        $hash = $this->requestHash($input);
+        $hash = $this->requestHash($pickup, $destination, $category);
 
         try {
-            return DB::transaction(function () use ($rider, $idempotencyKey, $input, $hash) {
-                return $this->store($rider, $idempotencyKey, $input, $hash);
+            return DB::transaction(function () use ($rider, $idempotencyKey, $pickup, $destination, $category, $hash) {
+                return $this->store($rider, $idempotencyKey, $pickup, $destination, $category, $hash);
             });
         } catch (QueryException $exception) {
             if (! $this->isUniqueViolation($exception)) {
@@ -36,10 +36,9 @@ class CreateRide
     }
 
     /**
-     * @param  array{pickup_place_id: string, destination_place_id: string, category: string}  $input
      * @return array{ride: Ride, created: bool}
      */
-    private function store(User $rider, string $idempotencyKey, array $input, string $hash): array
+    private function store(User $rider, string $idempotencyKey, MapPoint $pickup, MapPoint $destination, string $category, string $hash): array
     {
         $replay = $this->matchingReplay($rider, $idempotencyKey, $hash);
 
@@ -56,31 +55,25 @@ class CreateRide
             throw new ActiveRideExistsException($active->id);
         }
 
-        $quote = ($this->quote)(
-            $input['pickup_place_id'],
-            $input['destination_place_id'],
-            $input['category'],
-        );
-        $places = config('rides.places');
-        $pickup = $places[$input['pickup_place_id']];
-        $destination = $places[$input['destination_place_id']];
+        $quote = ($this->quote)($pickup, $destination, $category);
 
         $ride = Ride::query()->create([
             'rider_id' => $rider->id,
-            'pickup_place_id' => $input['pickup_place_id'],
-            'pickup_name' => $pickup['name'],
-            'pickup_lat' => $pickup['lat'],
-            'pickup_lng' => $pickup['lng'],
-            'destination_place_id' => $input['destination_place_id'],
-            'destination_name' => $destination['name'],
-            'destination_lat' => $destination['lat'],
-            'destination_lng' => $destination['lng'],
-            'category' => $input['category'],
+            'pickup_place_id' => $pickup->placeId(),
+            'pickup_name' => $pickup->name(),
+            'pickup_lat' => $pickup->lat,
+            'pickup_lng' => $pickup->lng,
+            'destination_place_id' => $destination->placeId(),
+            'destination_name' => $destination->name(),
+            'destination_lat' => $destination->lat,
+            'destination_lng' => $destination->lng,
+            'category' => $category,
             'status' => 'requested',
             'distance_km' => $quote['distance_km'],
             'duration_min' => $quote['duration_min'],
             'pickup_eta_min' => $quote['pickup_eta_min'],
             'fare_amount' => $quote['fare_amount'],
+            'route' => $quote['route'],
             'idempotency_key' => $idempotencyKey,
             'request_hash' => $hash,
         ]);
@@ -93,16 +86,15 @@ class CreateRide
         return ['ride' => $this->load($ride), 'created' => true];
     }
 
-    /**
-     * @param  array{pickup_place_id: string, destination_place_id: string, category: string}  $input
-     */
-    private function requestHash(array $input): string
+    private function requestHash(MapPoint $pickup, MapPoint $destination, string $category): string
     {
         $canonical = json_encode([
-            'pickup_place_id' => $input['pickup_place_id'],
-            'destination_place_id' => $input['destination_place_id'],
-            'category' => $input['category'],
-        ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
+            'pickup_lat' => $pickup->lat,
+            'pickup_lng' => $pickup->lng,
+            'destination_lat' => $destination->lat,
+            'destination_lng' => $destination->lng,
+            'category' => $category,
+        ], JSON_THROW_ON_ERROR);
 
         return hash('sha256', $canonical);
     }
