@@ -53,7 +53,7 @@ Create sends the same coordinate body as the estimate. Do not send a fare in the
 
 ## Status
 
-Show confirmation, places, fare, ETA, status, and the driver when present. An SVG placeholder draws the two places. It is not a live map.
+Show confirmation, places, fare, ETA, status, and the driver when present. The status page draws the stored route on the same MapLibre map used for booking, the assigned driver's stored coordinates when a driver is present, and the GPS dot when the browser allows it. A null route draws the pins and no line. The page does not call OSRM.
 
 Poll `GET /api/rides/{id}` every 3 seconds while status is `requested` or `accepted`. Stop polling after `completed` or `cancelled`.
 

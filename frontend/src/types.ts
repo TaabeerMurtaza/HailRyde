@@ -76,6 +76,7 @@ export type Ride = {
   category: RideCategory
   pickup: Place
   destination: Place
+  route: LineString | null
   distance_km: string
   duration_min: number
   pickup_eta_min: number | null

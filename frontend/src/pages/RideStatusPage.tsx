@@ -1,8 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router'
 import { api } from '../api'
+import { RideMap } from '../components/RideMap'
 import { useAuth } from '../use-auth'
-import type { ApiError, Place, Ride } from '../types'
+import { useUserLocation } from '../use-user-location'
+import type { ApiError, DriverDot, Ride } from '../types'
+
+function noop() {}
 
 const buttonClass =
   'rounded-md bg-stone-950 px-4 py-2 font-medium text-amber-300 disabled:opacity-60'
@@ -10,6 +14,7 @@ const buttonClass =
 export function RideStatusPage() {
   const { id } = useParams()
   const { user } = useAuth()
+  const { user: userLocation } = useUserLocation()
   const [ride, setRide] = useState<Ride | null>(null)
   const [loadError, setLoadError] = useState<ApiError | null>(null)
   const [cancelling, setCancelling] = useState(false)
@@ -93,8 +98,19 @@ export function RideStatusPage() {
   const canCancel =
     user?.role === 'rider' && (ride?.status === 'requested' || ride?.status === 'accepted')
 
+  const drivers: DriverDot[] = ride?.driver
+    ? [
+        {
+          id: ride.driver.id,
+          lat: ride.driver.lat,
+          lng: ride.driver.lng,
+          category: ride.driver.category,
+        },
+      ]
+    : []
+
   return (
-    <section className="mx-auto w-full max-w-md">
+    <section className="mx-auto w-full max-w-3xl">
       <h1 className="text-3xl font-semibold tracking-tight">Ride status</h1>
       {loadError ? <p className="mt-4 text-sm text-red-800">{loadError.message}</p> : null}
       {ride ? (
@@ -103,7 +119,16 @@ export function RideStatusPage() {
           <p>
             Status <span className="font-medium">{ride.status}</span>
           </p>
-          <PlaceMap pickup={ride.pickup} destination={ride.destination} />
+          <RideMap
+            pickup={{ lat: Number(ride.pickup.lat), lng: Number(ride.pickup.lng) }}
+            destination={{ lat: Number(ride.destination.lat), lng: Number(ride.destination.lng) }}
+            route={ride.route}
+            drivers={drivers}
+            user={userLocation}
+            interactive={false}
+            onPickup={noop}
+            onDestination={noop}
+          />
           <p>Pickup {ride.pickup.name}</p>
           <p>Destination {ride.destination.name}</p>
           <p>
@@ -140,45 +165,5 @@ export function RideStatusPage() {
         <p className="mt-4 text-sm">Loading ride…</p>
       )}
     </section>
-  )
-}
-
-function PlaceMap({ pickup, destination }: { pickup: Place; destination: Place }) {
-  const lats = [Number(pickup.lat), Number(destination.lat)]
-  const lngs = [Number(pickup.lng), Number(destination.lng)]
-  const minLat = Math.min(...lats)
-  const maxLat = Math.max(...lats)
-  const minLng = Math.min(...lngs)
-  const maxLng = Math.max(...lngs)
-  const latSpan = Math.max(maxLat - minLat, 0.000001)
-  const lngSpan = Math.max(maxLng - minLng, 0.000001)
-
-  function point(place: Place) {
-    return {
-      x: 40 + ((Number(place.lng) - minLng) / lngSpan) * 240,
-      y: 36 + ((maxLat - Number(place.lat)) / latSpan) * 88,
-    }
-  }
-
-  const from = point(pickup)
-  const to = point(destination)
-
-  return (
-    <svg
-      viewBox="0 0 320 160"
-      role="img"
-      aria-label={`${pickup.name} to ${destination.name}`}
-      className="h-40 w-full rounded-md bg-stone-100"
-    >
-      <line x1={from.x} y1={from.y} x2={to.x} y2={to.y} stroke="#1c1917" strokeWidth="2" />
-      <circle cx={from.x} cy={from.y} r="6" fill="#d97706" />
-      <circle cx={to.x} cy={to.y} r="6" fill="#1c1917" />
-      <text x={from.x + 10} y={from.y - 8} fill="#1c1917" fontSize="12">
-        {pickup.name}
-      </text>
-      <text x={to.x + 10} y={to.y + 16} fill="#1c1917" fontSize="12">
-        {destination.name}
-      </text>
-    </svg>
   )
 }
