@@ -1,17 +1,40 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { api } from '../api'
-import { Field } from '../components/Field'
+import { RideMap } from '../components/RideMap'
+import { format6 } from '../lahore'
 import { useAuth } from '../use-auth'
-import type { ApiError, Estimate, Place, RideCategory } from '../types'
+import { useUserLocation } from '../use-user-location'
+import type { ApiError, DriverDot, Estimate, RideCategory } from '../types'
 
 const IDEMPOTENCY_STORAGE_KEY = 'hailryde.idempotency-key'
-
-const selectClass =
-  'w-full rounded-md border border-stone-300 bg-white px-3 py-2 text-base outline-none focus:border-stone-900'
+const DRIVER_POLL_MS = 10000
+const QUOTE_DELAY_MS = 400
 
 const buttonClass =
   'rounded-md bg-stone-950 px-4 py-2 font-medium text-amber-300 disabled:opacity-60'
+
+type Pin = { lat: number; lng: number }
+
+function pinKey(pin: Pin | null): string {
+  return pin ? `${format6(pin.lat)},${format6(pin.lng)}` : ''
+}
+
+function pinLabel(pin: Pin | null): string {
+  return pin ? `${format6(pin.lat)}, ${format6(pin.lng)}` : 'not set'
+}
+
+function tripBody(pickupKey: string, destinationKey: string, category: RideCategory) {
+  const [pickupLat, pickupLng] = pickupKey.split(',').map(Number)
+  const [destinationLat, destinationLng] = destinationKey.split(',').map(Number)
+  return {
+    pickup_lat: pickupLat,
+    pickup_lng: pickupLng,
+    destination_lat: destinationLat,
+    destination_lng: destinationLng,
+    category,
+  }
+}
 
 function ensureIdempotencyKey(): string {
   const existing = sessionStorage.getItem(IDEMPOTENCY_STORAGE_KEY)
@@ -27,40 +50,51 @@ function ensureIdempotencyKey(): string {
 export function BookPage() {
   const navigate = useNavigate()
   const { user } = useAuth()
-  const [places, setPlaces] = useState<Place[] | null>(null)
-  const [placesError, setPlacesError] = useState<ApiError | null>(null)
-  const [pickupId, setPickupId] = useState('')
-  const [destinationId, setDestinationId] = useState('')
+  const { user: here, note, refresh } = useUserLocation()
+  const [pickup, setPickup] = useState<Pin | null>(null)
+  const [destination, setDestination] = useState<Pin | null>(null)
   const [category, setCategory] = useState<RideCategory>('economy')
+  const [drivers, setDrivers] = useState<DriverDot[]>([])
   const [quote, setQuote] = useState<Estimate | null>(null)
   const [quoteLoading, setQuoteLoading] = useState(false)
   const [quoteError, setQuoteError] = useState<ApiError | null>(null)
+  const [quoteAttempt, setQuoteAttempt] = useState(0)
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<ApiError | null>(null)
 
-  const differentPlaces = pickupId !== '' && destinationId !== '' && pickupId !== destinationId
-  const tripKey = `${pickupId}|${destinationId}|${category}`
+  const pickupKey = pinKey(pickup)
+  const destinationKey = pinKey(destination)
+  const differentPins = pickupKey !== '' && destinationKey !== '' && pickupKey !== destinationKey
+  const tripKey = `${pickupKey}|${destinationKey}|${category}`
   const seenTrip = useRef<string | null>(null)
+
+  useEffect(() => {
+    if (here) {
+      setPickup((current) => current ?? here)
+    }
+  }, [here])
 
   useEffect(() => {
     let cancelled = false
 
-    api<{ places?: Place[] }>('/api/places')
-      .then((body) => {
-        if (!cancelled) {
-          setPlaces(Array.isArray(body.places) ? body.places : [])
-        }
-      })
-      .catch((caught: ApiError) => {
-        if (!cancelled) {
-          setPlacesError(caught)
-        }
-      })
+    function load() {
+      api<{ drivers?: DriverDot[] }>(`/api/drivers?category=${category}`)
+        .then((body) => {
+          if (!cancelled && Array.isArray(body.drivers)) {
+            setDrivers(body.drivers)
+          }
+        })
+        .catch(() => {})
+    }
+
+    load()
+    const timer = window.setInterval(load, DRIVER_POLL_MS)
 
     return () => {
       cancelled = true
+      window.clearInterval(timer)
     }
-  }, [])
+  }, [category])
 
   useEffect(() => {
     if (seenTrip.current === null) {
@@ -78,46 +112,51 @@ export function BookPage() {
   }, [tripKey])
 
   useEffect(() => {
-    if (!differentPlaces) {
-      setQuote(null)
+    setQuote(null)
+    setQuoteError(null)
+
+    if (!differentPins) {
       setQuoteLoading(false)
-      setQuoteError(null)
       return
     }
 
     let cancelled = false
     setQuoteLoading(true)
-    setQuoteError(null)
 
-    api<Estimate>('/api/estimates', {
-      method: 'POST',
-      body: JSON.stringify({
-        pickup_place_id: pickupId,
-        destination_place_id: destinationId,
-        category,
-      }),
-    })
-      .then((next) => {
-        if (!cancelled) {
-          setQuote(next)
-          setQuoteLoading(false)
-        }
+    const timer = window.setTimeout(() => {
+      api<Estimate>('/api/estimates', {
+        method: 'POST',
+        body: JSON.stringify(tripBody(pickupKey, destinationKey, category)),
       })
-      .catch((caught: ApiError) => {
-        if (!cancelled) {
-          setQuote(null)
-          setQuoteError(caught)
-          setQuoteLoading(false)
-        }
-      })
+        .then((next) => {
+          if (!cancelled) {
+            setQuote(next)
+            setQuoteLoading(false)
+          }
+        })
+        .catch((caught: ApiError) => {
+          if (!cancelled) {
+            setQuoteError(caught)
+            setQuoteLoading(false)
+          }
+        })
+    }, QUOTE_DELAY_MS)
 
     return () => {
       cancelled = true
+      window.clearTimeout(timer)
     }
-  }, [category, destinationId, differentPlaces, pickupId])
+  }, [category, destinationKey, differentPins, pickupKey, quoteAttempt])
+
+  async function handleUseMyLocation() {
+    const fix = await refresh()
+    if (fix) {
+      setPickup(fix)
+    }
+  }
 
   async function requestRide() {
-    if (!differentPlaces || submitting) {
+    if (!differentPins || submitting) {
       return
     }
 
@@ -129,11 +168,7 @@ export function BookPage() {
       const body = await api<{ ride: { id: number } }>('/api/rides', {
         method: 'POST',
         headers: { 'Idempotency-Key': key },
-        body: JSON.stringify({
-          pickup_place_id: pickupId,
-          destination_place_id: destinationId,
-          category,
-        }),
+        body: JSON.stringify(tripBody(pickupKey, destinationKey, category)),
       })
       sessionStorage.removeItem(IDEMPOTENCY_STORAGE_KEY)
       navigate(`/rides/${body.ride.id}`)
@@ -145,7 +180,7 @@ export function BookPage() {
   }
 
   return (
-    <section className="mx-auto w-full max-w-md">
+    <section className="mx-auto w-full max-w-3xl">
       <h1 className="text-3xl font-semibold tracking-tight">Book a ride</h1>
       <p className="mt-2 text-stone-700">Signed in as {user?.name}.</p>
 
@@ -156,15 +191,25 @@ export function BookPage() {
           void requestRide()
         }}
       >
-        {placesError ? <p className="text-sm text-red-800">{placesError.message}</p> : null}
-        {places ? (
-          <>
-            <PlaceSelect label="Pickup" places={places} value={pickupId} onChange={setPickupId} />
-            <PlaceSelect label="Destination" places={places} value={destinationId} onChange={setDestinationId} />
-          </>
-        ) : placesError ? null : (
-          <p className="text-sm">Loading places…</p>
-        )}
+        <RideMap
+          pickup={pickup}
+          destination={destination}
+          user={here}
+          drivers={drivers}
+          route={quote?.route ?? null}
+          interactive={!submitting}
+          onPickup={(lat, lng) => setPickup({ lat, lng })}
+          onDestination={(lat, lng) => setDestination({ lat, lng })}
+        />
+
+        <div className="space-y-1 text-sm">
+          <p>Pickup {pinLabel(pickup)}</p>
+          <p>Destination {pinLabel(destination)}</p>
+          {!pickup && note ? <p>{note}</p> : null}
+          <button type="button" onClick={() => void handleUseMyLocation()} disabled={submitting} className={buttonClass}>
+            Use my location
+          </button>
+        </div>
 
         <fieldset>
           <legend className="mb-1 text-sm font-medium">Category</legend>
@@ -195,7 +240,7 @@ export function BookPage() {
         <div aria-live="polite" className="rounded-md border border-stone-200 bg-stone-50 p-4 text-sm">
           <h2 className="mb-2 font-medium">Quote</h2>
           {quoteLoading ? <p>Loading quote…</p> : null}
-          {!quoteLoading && !quote && !quoteError ? <p>Choose two different places.</p> : null}
+          {!quoteLoading && !quote && !quoteError ? <p>Set a pickup and a destination.</p> : null}
           {quote && !quoteLoading ? (
             <dl className="space-y-1">
               <div>
@@ -222,7 +267,15 @@ export function BookPage() {
               </div>
             </dl>
           ) : null}
-          {quoteError ? <p className="mt-2 text-red-800">{quoteError.message}</p> : null}
+          {quoteError ? (
+            <div className="mt-2">
+              <p className="text-red-800">{quoteError.message}</p>
+              <button type="button" onClick={() => setQuoteAttempt((count) => count + 1)} className={`mt-2 ${buttonClass}`}>
+                Retry
+              </button>
+            </div>
+          ) : null}
+          <p className="mt-2 text-xs text-stone-600">Routes by OSRM</p>
         </div>
 
         {submitError ? <p className="text-sm text-red-800">{submitError.message}</p> : null}
@@ -239,30 +292,5 @@ export function BookPage() {
         </div>
       </form>
     </section>
-  )
-}
-
-function PlaceSelect({
-  label,
-  places,
-  value,
-  onChange,
-}: {
-  label: string
-  places: Place[]
-  value: string
-  onChange: (value: string) => void
-}) {
-  return (
-    <Field label={label} messages={[]}>
-      <select value={value} onChange={(event) => onChange(event.target.value)} className={selectClass}>
-        <option value="">Select a place</option>
-        {places.map((place) => (
-          <option key={place.id} value={place.id}>
-            {place.name}
-          </option>
-        ))}
-      </select>
-    </Field>
   )
 }

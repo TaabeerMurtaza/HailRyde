@@ -5,6 +5,38 @@ import { MemoryRouter } from 'react-router'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import App from './App'
 
+vi.mock('maplibre-gl', () => {
+  class Map {
+    on() {
+      return this
+    }
+    off() {
+      return this
+    }
+    getSource() {
+      return undefined
+    }
+    remove() {}
+  }
+
+  class Marker {
+    setLngLat() {
+      return this
+    }
+    addTo() {
+      return this
+    }
+    on() {
+      return this
+    }
+    remove() {
+      return this
+    }
+  }
+
+  return { Map, Marker }
+})
+
 const rider = {
   id: 1,
   name: 'Ayesha Khan',

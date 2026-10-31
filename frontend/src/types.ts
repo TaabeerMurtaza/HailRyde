@@ -1,3 +1,5 @@
+import type { LineString } from 'geojson'
+
 export type Role = 'rider' | 'driver'
 
 export type DriverProfile = {
@@ -43,6 +45,7 @@ export type Estimate = {
   fare_amount: string
   currency: string
   pickup_eta_min: number | null
+  route: LineString | null
 }
 
 export type RideStatus = 'requested' | 'accepted' | 'completed' | 'cancelled'
@@ -55,6 +58,15 @@ export type RidePerson = {
 
 export type RideDriver = RidePerson & {
   plate: string
+  category: RideCategory
+  lat: string
+  lng: string
+}
+
+export type DriverDot = {
+  id: number
+  lat: string
+  lng: string
   category: RideCategory
 }
 
