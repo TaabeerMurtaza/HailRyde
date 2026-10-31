@@ -29,7 +29,7 @@ Pickup:
 
 Pins:
 
-- A map click sets the pickup when it is unset and the destination otherwise. Both pins are draggable and a drag sets that pin to the drop point.
+- A map click sets the pickup when it is unset and the destination otherwise. Both pins are draggable and a drag sets that pin to the drop point. A click that lands on an existing pin does not place or move a pin. Clicks on the map surface still set the pickup when it is unset and the destination otherwise.
 - While a ride request is in flight the map is not interactive: clicks and drags are ignored.
 - Available drivers of the chosen category show as small grey dots. The page polls `GET /api/drivers?category=` immediately, on category change, and every 10 seconds. A failed poll keeps the previous dots and does not block the quote.
 - The quoted route is drawn as a line. With no quote the line is empty.

@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom/vitest'
-import { cleanup, render, screen } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
@@ -283,4 +283,119 @@ it('ignores a map click whose target is inside a pin', async () => {
 
   mapClicks.at(-1)?.({ lngLat: { lat: 31.5216, lng: 74.4036 }, originalEvent: { target: document.body } })
   expect(await screen.findByText('Destination 31.521600, 74.403600')).toBeVisible()
+})
+
+it('keeps quoting when a driver poll fails after a successful one', async () => {
+  grantLocation()
+  const intervals: Array<() => void> = []
+  const realSetInterval = window.setInterval.bind(window)
+  vi.spyOn(window, 'setInterval').mockImplementation(((handler: TimerHandler, delay?: number, ...args: unknown[]) => {
+    if (delay === 10000 && typeof handler === 'function') {
+      intervals.push(handler as () => void)
+      return 0
+    }
+    return realSetInterval(handler, delay, ...args)
+  }) as typeof window.setInterval)
+
+  let driverCalls = 0
+  const fetchMock = vi.fn((input: RequestInfo | URL) => {
+    const path = pathOf(input)
+    if (path === '/api/me') return Promise.resolve(jsonResponse({ user: rider }))
+    if (path === '/api/drivers') {
+      driverCalls += 1
+      return driverCalls === 1
+        ? Promise.resolve(jsonResponse({ drivers: [economyDriver] }))
+        : Promise.reject(new Error('network down'))
+    }
+    if (path === '/api/estimates') return Promise.resolve(jsonResponse(quote))
+    return Promise.reject(new Error(`unmocked ${path}`))
+  })
+  vi.stubGlobal('fetch', fetchMock)
+
+  renderBook()
+  await waitFor(() => expect(driverCalls).toBe(1))
+  await waitFor(() => expect(intervals).toHaveLength(1))
+
+  await act(async () => {
+    intervals[0]()
+  })
+  expect(driverCalls).toBe(2)
+
+  await chooseTrip()
+  expect(screen.queryByText(/Could not reach HailRyde/)).not.toBeInTheDocument()
+
+  vi.restoreAllMocks()
+})
+
+it('ignores a quote response for an older pin pair', async () => {
+  grantLocation()
+  const pending: Array<(response: Response) => void> = []
+  vi.stubGlobal(
+    'fetch',
+    vi.fn((input: RequestInfo | URL) => {
+      const path = pathOf(input)
+      if (path === '/api/me') return Promise.resolve(jsonResponse({ user: rider }))
+      if (path === '/api/drivers') return Promise.resolve(jsonResponse({ drivers: [] }))
+      if (path === '/api/estimates') {
+        return new Promise<Response>((resolve) => {
+          pending.push(resolve)
+        })
+      }
+      return Promise.reject(new Error(`unmocked ${path}`))
+    }),
+  )
+
+  renderBook()
+  await screen.findByText('Pickup 31.520400, 74.358700')
+
+  mapClicks.at(-1)?.({ lngLat: { lat: 31.5216, lng: 74.4036 } })
+  await waitFor(() => expect(pending).toHaveLength(1))
+
+  mapClicks.at(-1)?.({ lngLat: { lat: 31.53, lng: 74.38 } })
+  await waitFor(() => expect(pending).toHaveLength(2))
+
+  await act(async () => {
+    pending[0](jsonResponse({ ...quote, fare_amount: '1.00' }))
+  })
+  expect(screen.queryByText(/^1\.00 PKR/)).not.toBeInTheDocument()
+
+  await act(async () => {
+    pending[1](jsonResponse({ ...quote, fare_amount: '389.00' }))
+  })
+  expect(await screen.findByText(/389\.00/)).toBeVisible()
+  expect(screen.queryByText(/^1\.00 PKR/)).not.toBeInTheDocument()
+})
+
+it('does not move a placed pickup when a GPS fix arrives late', async () => {
+  let deliver: ((pos: typeof position) => void) | null = null
+  vi.stubGlobal('navigator', {
+    geolocation: {
+      getCurrentPosition: (success: (pos: typeof position) => void) => {
+        deliver = success
+      },
+    },
+  })
+  vi.stubGlobal(
+    'fetch',
+    vi.fn((input: RequestInfo | URL) => {
+      const path = pathOf(input)
+      if (path === '/api/me') return Promise.resolve(jsonResponse({ user: rider }))
+      if (path === '/api/drivers') return Promise.resolve(jsonResponse({ drivers: [] }))
+      return Promise.reject(new Error(`unmocked ${path}`))
+    }),
+  )
+
+  renderBook()
+  await screen.findByText('Pickup not set')
+  await waitFor(() => expect(deliver).not.toBeNull())
+
+  mapClicks.at(-1)?.({ lngLat: { lat: 31.55, lng: 74.4 } })
+  expect(await screen.findByText('Pickup 31.550000, 74.400000')).toBeVisible()
+
+  await act(async () => {
+    deliver?.(position)
+  })
+
+  expect(screen.getByText('Pickup 31.550000, 74.400000')).toBeVisible()
+  expect(screen.queryByText('Pickup 31.520400, 74.358700')).not.toBeInTheDocument()
 })
