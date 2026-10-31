@@ -17,7 +17,16 @@ const rider = {
 type MapClick = { lngLat: { lat: number; lng: number }; originalEvent?: { target: EventTarget } }
 
 const mapClicks = vi.hoisted(() => [] as Array<(event: MapClick) => void>)
-const pinElements = vi.hoisted(() => [] as HTMLElement[])
+const markers = vi.hoisted(
+  () =>
+    [] as Array<{
+      options: { color?: string; element?: HTMLElement }
+      element: HTMLElement
+      lngLat: number[] | null
+      added: boolean
+      removed: boolean
+    }>,
+)
 
 vi.mock('maplibre-gl', () => {
   class Map {
@@ -43,27 +52,36 @@ vi.mock('maplibre-gl', () => {
   }
 
   class Marker {
-    element: HTMLElement
-    constructor(options?: { element?: HTMLElement }) {
-      this.element = options?.element ?? document.createElement('div')
-      pinElements.push(this.element)
+    record: (typeof markers)[number]
+    constructor(options: { color?: string; element?: HTMLElement } = {}) {
+      this.record = {
+        options,
+        element: options.element ?? document.createElement('div'),
+        lngLat: null,
+        added: false,
+        removed: false,
+      }
+      markers.push(this.record)
     }
     getElement() {
-      return this.element
+      return this.record.element
     }
-    setLngLat() {
+    setLngLat(lngLat: number[]) {
+      this.record.lngLat = lngLat
       return this
     }
     setDraggable() {
       return this
     }
     addTo() {
+      this.record.added = true
       return this
     }
     on() {
       return this
     }
     remove() {
+      this.record.removed = true
       return this
     }
   }
@@ -117,18 +135,27 @@ function renderBook() {
   )
 }
 
+// Let React flush passive effects, so the map click handler sees the rendered pickup.
+async function clickMap(event: MapClick) {
+  await act(async () => {})
+  mapClicks.at(-1)?.(event)
+}
+
 async function chooseTrip() {
   await screen.findByText('Pickup 31.520400, 74.358700')
-  mapClicks.at(-1)?.({ lngLat: { lat: 31.5216, lng: 74.4036 } })
+  await clickMap({ lngLat: { lat: 31.5216, lng: 74.4036 } })
   expect(await screen.findByText(/389\.00/)).toBeVisible()
 }
 
 afterEach(() => {
   cleanup()
+  vi.restoreAllMocks()
   sessionStorage.clear()
 })
 
 beforeEach(() => {
+  mapClicks.length = 0
+  markers.length = 0
   localStorage.clear()
   sessionStorage.clear()
   localStorage.setItem('hailryde.token', 'rider-token')
@@ -272,16 +299,17 @@ it('ignores a map click whose target is inside a pin', async () => {
   renderBook()
   await screen.findByText('Pickup 31.520400, 74.358700')
 
-  const pinElement = pinElements.find((element) => 'pin' in element.dataset)
-  expect(pinElement).toBeDefined()
+  const pickupMarker = markers.find((marker) => marker.options.color === '#d97706' && !marker.removed)
+  expect(pickupMarker).toBeDefined()
+  expect(pickupMarker?.lngLat).toEqual([74.3587, 31.5204])
   const inner = document.createElement('span')
-  pinElement?.appendChild(inner)
+  pickupMarker?.element.appendChild(inner)
 
-  mapClicks.at(-1)?.({ lngLat: { lat: 31.5216, lng: 74.4036 }, originalEvent: { target: inner } })
+  await clickMap({ lngLat: { lat: 31.5216, lng: 74.4036 }, originalEvent: { target: inner } })
   await new Promise((resolve) => setTimeout(resolve, 50))
   expect(screen.getByText('Destination not set')).toBeVisible()
 
-  mapClicks.at(-1)?.({ lngLat: { lat: 31.5216, lng: 74.4036 }, originalEvent: { target: document.body } })
+  await clickMap({ lngLat: { lat: 31.5216, lng: 74.4036 }, originalEvent: { target: document.body } })
   expect(await screen.findByText('Destination 31.521600, 74.403600')).toBeVisible()
 })
 
@@ -324,7 +352,13 @@ it('keeps quoting when a driver poll fails after a successful one', async () => 
   await chooseTrip()
   expect(screen.queryByText(/Could not reach HailRyde/)).not.toBeInTheDocument()
 
-  vi.restoreAllMocks()
+  const driverMarkers = markers.filter(
+    (marker) => marker.lngLat?.[0] === 74.3436 && marker.lngLat?.[1] === 31.5101,
+  )
+  expect(driverMarkers).toHaveLength(1)
+  expect(driverMarkers[0].added).toBe(true)
+  expect(driverMarkers[0].removed).toBe(false)
+
 })
 
 it('ignores a quote response for an older pin pair', async () => {
@@ -348,10 +382,10 @@ it('ignores a quote response for an older pin pair', async () => {
   renderBook()
   await screen.findByText('Pickup 31.520400, 74.358700')
 
-  mapClicks.at(-1)?.({ lngLat: { lat: 31.5216, lng: 74.4036 } })
+  await clickMap({ lngLat: { lat: 31.5216, lng: 74.4036 } })
   await waitFor(() => expect(pending).toHaveLength(1))
 
-  mapClicks.at(-1)?.({ lngLat: { lat: 31.53, lng: 74.38 } })
+  await clickMap({ lngLat: { lat: 31.53, lng: 74.38 } })
   await waitFor(() => expect(pending).toHaveLength(2))
 
   await act(async () => {
@@ -389,7 +423,7 @@ it('does not move a placed pickup when a GPS fix arrives late', async () => {
   await screen.findByText('Pickup not set')
   await waitFor(() => expect(deliver).not.toBeNull())
 
-  mapClicks.at(-1)?.({ lngLat: { lat: 31.55, lng: 74.4 } })
+  await clickMap({ lngLat: { lat: 31.55, lng: 74.4 } })
   expect(await screen.findByText('Pickup 31.550000, 74.400000')).toBeVisible()
 
   await act(async () => {
