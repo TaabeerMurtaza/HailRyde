@@ -7,7 +7,7 @@ use Illuminate\Http\JsonResponse;
 class ApiError
 {
     /**
-     * @param  array<string, list<string>>  $details
+     * @param  array<string, mixed>  $details
      */
     public static function response(string $code, string $message, array $details = [], int $status = 400): JsonResponse
     {

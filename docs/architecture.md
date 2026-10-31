@@ -8,7 +8,7 @@ A `401` clears the stored token and shows the login page. Passwords, tokens, and
 
 ## Assessment questions
 
-Accounts and sessions are implemented. Ride acceptance, idempotency, and fares below are the design in `docs/specs`.
+Accounts, sessions, fares, idempotent create, and ride transitions are implemented. The notes below match `docs/specs`.
 
 1. Laravel 13 and PHP 8.4 are the API because Composer blocks Laravel 11 for security advisories. React, TypeScript, and Vite are the UI. PostgreSQL holds riders, drivers, rides, and assignments. Business rules live in actions. Controllers validate input and call one action. Sanctum bearer tokens fit two origins without a shared cookie domain in local development.
 

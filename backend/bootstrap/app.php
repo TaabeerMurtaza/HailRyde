@@ -1,6 +1,11 @@
 <?php
 
+use App\Exceptions\ActiveRideExistsException;
+use App\Exceptions\ForbiddenException;
+use App\Exceptions\IdempotencyConflictException;
 use App\Exceptions\InvalidCredentialsException;
+use App\Exceptions\RideConflictException;
+use App\Exceptions\RideNotFoundException;
 use App\Http\ApiError;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Application;
@@ -39,6 +44,36 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->render(function (AuthenticationException $exception, Request $request) {
             if ($request->is('api/*')) {
                 return ApiError::response('unauthenticated', 'Unauthenticated.', status: 401);
+            }
+        });
+
+        $exceptions->render(function (ForbiddenException $exception, Request $request) {
+            if ($request->is('api/*')) {
+                return ApiError::response('forbidden', $exception->getMessage(), status: 403);
+            }
+        });
+
+        $exceptions->render(function (IdempotencyConflictException $exception, Request $request) {
+            if ($request->is('api/*')) {
+                return ApiError::response('idempotency_conflict', $exception->getMessage(), status: 409);
+            }
+        });
+
+        $exceptions->render(function (ActiveRideExistsException $exception, Request $request) {
+            if ($request->is('api/*')) {
+                return ApiError::response('active_ride_exists', $exception->getMessage(), ['ride_id' => $exception->rideId], 409);
+            }
+        });
+
+        $exceptions->render(function (RideConflictException $exception, Request $request) {
+            if ($request->is('api/*')) {
+                return ApiError::response($exception->errorCode, $exception->getMessage(), status: 409);
+            }
+        });
+
+        $exceptions->render(function (RideNotFoundException $exception, Request $request) {
+            if ($request->is('api/*')) {
+                return ApiError::response('not_found', $exception->getMessage(), status: 404);
             }
         });
     })->create();

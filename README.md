@@ -8,7 +8,7 @@ Take-home ride-booking assessment. This repository is licensed for technical eva
 - API: Laravel (`backend/`)
 - Database: PostgreSQL 16
 
-Behavior is defined in `docs/specs`. Cursor was used to implement the auth module from those specs.
+Behavior is defined in `docs/specs`. Cursor was used to implement the application from those specs.
 
 ## Local setup
 
@@ -39,10 +39,9 @@ Seed them with `cd backend && php artisan db:seed` after migrating.
 
 ## Checks
 
-These commands were run against the auth module:
+These commands were run:
 
-- `cd backend && php artisan test`
-- `cd frontend && npm test`
-- `cd frontend && npm run build`
+- `cd backend && php artisan test` (the lock test skips on SQLite)
+- Lock test, with Compose Postgres up: `cd backend && DB_CONNECTION=pgsql DB_HOST=127.0.0.1 DB_PORT=5432 DB_DATABASE=hailryde DB_USERNAME=hailryde DB_PASSWORD=hailryde php artisan test --filter=lock`
 
-Register, login, logout, and the rider/driver route guards were also exercised in the browser.
+Earlier auth checks also ran `cd frontend && npm test`, `cd frontend && npm run build`, and the register, login, logout, and rider/driver route guards in the browser.

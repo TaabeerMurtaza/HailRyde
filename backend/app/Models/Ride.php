@@ -66,4 +66,12 @@ class Ride extends Model
     {
         return $this->hasOne(DriverAssignment::class);
     }
+
+    public function freshForResponse(): static
+    {
+        return $this->refresh()->load([
+            'rider',
+            'assignment.driver.driverProfile',
+        ]);
+    }
 }
