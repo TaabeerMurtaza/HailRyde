@@ -33,8 +33,8 @@ it('lists available drivers in the requested category for a rider', function () 
         ->assertExactJson([
             'drivers' => [[
                 'id' => $economy['id'],
-                'lat' => '31.520400',
-                'lng' => '74.358700',
+                'lat' => '33.561778',
+                'lng' => '73.148275',
                 'category' => 'economy',
             ]],
         ]);

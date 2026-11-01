@@ -7,9 +7,9 @@ use Illuminate\Support\Facades\DB;
 
 class RegisterUser
 {
-    private const GULBERG_LAT = '31.520400';
+    private const SOAN_GARDENS_LAT = '33.561778';
 
-    private const GULBERG_LNG = '74.358700';
+    private const SOAN_GARDENS_LNG = '73.148275';
 
     /**
      * @param  array{name: string, email: string, password: string, phone: string, role: string, plate?: string, category?: string}  $input
@@ -31,8 +31,8 @@ class RegisterUser
                     'plate' => $input['plate'],
                     'category' => $input['category'],
                     'status' => 'available',
-                    'lat' => self::GULBERG_LAT,
-                    'lng' => self::GULBERG_LNG,
+                    'lat' => self::SOAN_GARDENS_LAT,
+                    'lng' => self::SOAN_GARDENS_LNG,
                 ]);
             }
 

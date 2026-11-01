@@ -26,10 +26,13 @@ Vitest and Testing Library, on the book page:
 
 - While create is in flight, the busy label is visible.
 - When create fails, the error message is visible and the busy label is gone.
+- A rider with a `requested` or `accepted` ride who opens `/` lands on `/rides/:id`. A driver with an `accepted` ride who opens `/drive` lands on `/rides/:id` and can complete it there.
+- A `completed` or `cancelled` ride shows `Back to booking` for a rider and `Back to the driver desk` for a driver. That link opens their home when no ongoing ride remains.
+- The driver desk shows a requested ride that appears on a later poll, keeps it when a later poll fails, removes it when a later poll omits it, and removes it immediately when accept returns `409` `invalid_transition`.
 
 ## End to end
 
-One Playwright test. The API and Vite dev server are already running. Browser geolocation is set to Gulberg. Log in as `rider@hailryde.test`, click the map once to set the destination, wait for the quoted fare, book Economy, and land on a status URL that shows the same fare. The running API needs network access to the OSRM demo, and the browser needs OpenFreeMap.
+One Playwright test. The API and Vite dev server are already running. Browser geolocation is set to Soan Gardens. Log in as `rider@hailryde.test`, click the map once to set the destination, wait for the quoted fare, book Economy, and land on a status URL that shows the same fare. The running API needs network access to the OSRM demo, and the browser needs OpenFreeMap.
 
 ## Commands
 

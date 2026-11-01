@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useParams } from 'react-router'
+import { Link, useParams } from 'react-router'
 import { api } from '../api'
 import { RideMap } from '../components/RideMap'
 import { useAuth } from '../use-auth'
@@ -20,6 +20,8 @@ export function RideStatusPage() {
   const [loadError, setLoadError] = useState<ApiError | null>(null)
   const [cancelling, setCancelling] = useState(false)
   const [cancelError, setCancelError] = useState<ApiError | null>(null)
+  const [completing, setCompleting] = useState(false)
+  const [completeError, setCompleteError] = useState<ApiError | null>(null)
   const pollGeneration = useRef(0)
 
   useEffect(() => {
@@ -98,6 +100,30 @@ export function RideStatusPage() {
 
   const canCancel =
     user?.role === 'rider' && (ride?.status === 'requested' || ride?.status === 'accepted')
+  const canComplete =
+    user?.role === 'driver' && ride?.status === 'accepted' && ride.driver?.id === user.id
+  const rideOver = ride?.status === 'completed' || ride?.status === 'cancelled'
+  const home = user?.role === 'driver' ? '/drive' : '/'
+  const homeLabel = user?.role === 'driver' ? 'Back to the driver desk' : 'Back to booking'
+
+  async function completeRide() {
+    if (!id || completing) {
+      return
+    }
+
+    setCompleting(true)
+    setCompleteError(null)
+    pollGeneration.current += 1
+
+    try {
+      const body = await api<{ ride: Ride }>(`/api/rides/${id}/complete`, { method: 'POST' })
+      setRide(body.ride)
+    } catch (caught) {
+      setCompleteError(caught as ApiError)
+    } finally {
+      setCompleting(false)
+    }
+  }
 
   const pickupLat = ride?.pickup.lat
   const pickupLng = ride?.pickup.lng
@@ -147,6 +173,8 @@ export function RideStatusPage() {
             route={route}
             drivers={drivers}
             user={userLocation}
+            focus={null}
+            fit
             interactive={false}
             onPickup={noop}
             onDestination={noop}
@@ -181,6 +209,25 @@ export function RideStatusPage() {
                 {cancelling ? 'Cancelling…' : 'Cancel ride'}
               </button>
             </div>
+          ) : null}
+          {canComplete ? (
+            <div className="space-y-2">
+              {completeError ? <p className="text-sm text-red-800">{completeError.message}</p> : null}
+              <button
+                type="button"
+                disabled={completing}
+                aria-busy={completing}
+                onClick={() => void completeRide()}
+                className={buttonClass}
+              >
+                {completing ? 'Completing…' : 'Complete'}
+              </button>
+            </div>
+          ) : null}
+          {rideOver ? (
+            <Link to={home} className={`inline-block ${buttonClass}`}>
+              {homeLabel}
+            </Link>
           ) : null}
         </div>
       ) : loadError ? null : (

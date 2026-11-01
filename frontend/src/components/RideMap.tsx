@@ -1,9 +1,12 @@
 import type { LineString } from 'geojson'
 import * as maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
+import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url'
 import { useEffect, useRef } from 'react'
-import { GULBERG, LAHORE } from '../lahore'
+import { SERVICE_AREA, SOAN_GARDENS } from '../service-area'
 import type { DriverDot } from '../types'
+
+maplibregl.setWorkerUrl(workerUrl)
 
 type LatLng = { lat: number; lng: number }
 
@@ -13,6 +16,8 @@ type Props = {
   user: LatLng | null
   drivers: DriverDot[]
   route: LineString | null
+  focus: LatLng | null
+  fit: boolean
   interactive: boolean
   onPickup: (lat: number, lng: number) => void
   onDestination: (lat: number, lng: number) => void
@@ -32,7 +37,18 @@ function dot(color: string, size: number): HTMLElement {
   return element
 }
 
-export function RideMap({ pickup, destination, user, drivers, route, interactive, onPickup, onDestination }: Props) {
+export function RideMap({
+  pickup,
+  destination,
+  user,
+  drivers,
+  route,
+  focus,
+  fit,
+  interactive,
+  onPickup,
+  onDestination,
+}: Props) {
   const container = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
   const pickupRef = useRef(pickup)
@@ -57,11 +73,11 @@ export function RideMap({ pickup, destination, user, drivers, route, interactive
     const map = new maplibregl.Map({
       container: container.current,
       style: 'https://tiles.openfreemap.org/styles/liberty',
-      center: [GULBERG.lng, GULBERG.lat],
+      center: [SOAN_GARDENS.lng, SOAN_GARDENS.lat],
       zoom: 12,
       maxBounds: [
-        [LAHORE.west, LAHORE.south],
-        [LAHORE.east, LAHORE.north],
+        [SERVICE_AREA.west, SERVICE_AREA.south],
+        [SERVICE_AREA.east, SERVICE_AREA.north],
       ],
     })
     mapRef.current = map
@@ -127,6 +143,52 @@ export function RideMap({ pickup, destination, user, drivers, route, interactive
     () => pin(mapRef.current, destination, '#1c1917', interactive, (lat, lng) => onDestinationRef.current(lat, lng)),
     [destination, interactive],
   )
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) {
+      return
+    }
+    if (fit) {
+      const points: [number, number][] = []
+      if (pickup) {
+        points.push([pickup.lng, pickup.lat])
+      }
+      if (destination) {
+        points.push([destination.lng, destination.lat])
+      }
+      for (const pair of route?.coordinates ?? []) {
+        if (pair.length >= 2) {
+          points.push([pair[0], pair[1]])
+        }
+      }
+      if (points.length === 1) {
+        map.easeTo({ center: points[0] })
+      } else if (points.length > 1) {
+        let west = points[0][0]
+        let east = points[0][0]
+        let south = points[0][1]
+        let north = points[0][1]
+        for (const [lng, lat] of points) {
+          west = Math.min(west, lng)
+          east = Math.max(east, lng)
+          south = Math.min(south, lat)
+          north = Math.max(north, lat)
+        }
+        map.fitBounds(
+          [
+            [west, south],
+            [east, north],
+          ],
+          { padding: 48, maxZoom: 14 },
+        )
+      }
+      return
+    }
+    if (focus) {
+      map.easeTo({ center: [focus.lng, focus.lat] })
+    }
+  }, [destination, fit, focus, pickup, route])
 
   useEffect(() => {
     const map = mapRef.current

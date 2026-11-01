@@ -4,6 +4,7 @@ import { useAuth } from './use-auth'
 import { BookPage } from './pages/BookPage'
 import { DriverDeskPage } from './pages/DriverDeskPage'
 import { RequireAuth, RequireRole } from './pages/HomePages'
+import { ResumeActiveRide } from './pages/ResumeActiveRide'
 import { RideStatusPage } from './pages/RideStatusPage'
 import { LoginPage } from './pages/LoginPage'
 import { RegisterPage } from './pages/RegisterPage'
@@ -22,7 +23,9 @@ export default function App() {
               element={
                 <RequireAuth>
                   <RequireRole role="rider">
-                    <BookPage />
+                    <ResumeActiveRide>
+                      <BookPage />
+                    </ResumeActiveRide>
                   </RequireRole>
                 </RequireAuth>
               }
@@ -32,7 +35,9 @@ export default function App() {
               element={
                 <RequireAuth>
                   <RequireRole role="driver">
-                    <DriverDeskPage />
+                    <ResumeActiveRide>
+                      <DriverDeskPage />
+                    </ResumeActiveRide>
                   </RequireRole>
                 </RequireAuth>
               }

@@ -5,10 +5,10 @@ return [
     'currency' => 'PKR',
 
     'bounds' => [
-        'south' => 31.3,
-        'north' => 31.7,
-        'west' => 74.1,
-        'east' => 74.55,
+        'south' => 33.49,
+        'north' => 33.63,
+        'west' => 73.07,
+        'east' => 73.23,
     ],
 
     'categories' => [

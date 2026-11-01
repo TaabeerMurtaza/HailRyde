@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { api } from '../api'
 import { RideMap } from '../components/RideMap'
-import { format6 } from '../lahore'
+import { format6 } from '../service-area'
 import { useAuth } from '../use-auth'
 import { useUserLocation } from '../use-user-location'
 import type { ApiError, DriverDot, Estimate, RideCategory } from '../types'
@@ -50,9 +50,10 @@ function ensureIdempotencyKey(): string {
 export function BookPage() {
   const navigate = useNavigate()
   const { user } = useAuth()
-  const { user: here, note, refresh } = useUserLocation()
+  const { user: here, note, locating, refresh } = useUserLocation()
   const [pickup, setPickup] = useState<Pin | null>(null)
   const [destination, setDestination] = useState<Pin | null>(null)
+  const [focus, setFocus] = useState<Pin | null>(null)
   const [category, setCategory] = useState<RideCategory>('economy')
   const [drivers, setDrivers] = useState<DriverDot[]>([])
   const [quote, setQuote] = useState<Estimate | null>(null)
@@ -67,11 +68,15 @@ export function BookPage() {
   const differentPins = pickupKey !== '' && destinationKey !== '' && pickupKey !== destinationKey
   const tripKey = `${pickupKey}|${destinationKey}|${category}`
   const seenTrip = useRef<string | null>(null)
+  const pickupRef = useRef(pickup)
+  pickupRef.current = pickup
 
   useEffect(() => {
-    if (here) {
-      setPickup((current) => current ?? here)
+    if (!here || pickupRef.current) {
+      return
     }
+    setPickup(here)
+    setFocus(here)
   }, [here])
 
   useEffect(() => {
@@ -152,6 +157,7 @@ export function BookPage() {
     const fix = await refresh()
     if (fix) {
       setPickup(fix)
+      setFocus(fix)
     }
   }
 
@@ -197,6 +203,8 @@ export function BookPage() {
           user={here}
           drivers={drivers}
           route={quote?.route ?? null}
+          focus={focus}
+          fit={false}
           interactive={!submitting}
           onPickup={(lat, lng) => setPickup({ lat, lng })}
           onDestination={(lat, lng) => setDestination({ lat, lng })}
@@ -206,8 +214,14 @@ export function BookPage() {
           <p>Pickup {pinLabel(pickup)}</p>
           <p>Destination {pinLabel(destination)}</p>
           {!pickup && note ? <p>{note}</p> : null}
-          <button type="button" onClick={() => void handleUseMyLocation()} disabled={submitting} className={buttonClass}>
-            Use my location
+          <button
+            type="button"
+            onClick={() => void handleUseMyLocation()}
+            disabled={submitting || locating}
+            aria-busy={locating}
+            className={buttonClass}
+          >
+            {locating ? 'Finding your location…' : 'Use my location'}
           </button>
         </div>
 

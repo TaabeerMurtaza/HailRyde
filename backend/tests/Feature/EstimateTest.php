@@ -31,7 +31,7 @@ it('prices a road route from the documented formula and ignores a client fare', 
             'pickup_eta_min' => null,
             'route' => [
                 'type' => 'LineString',
-                'coordinates' => [[74.3587, 31.5204], [74.4036, 31.5216]],
+                'coordinates' => [[73.148275, 33.561778], [73.14, 33.59]],
             ],
         ]);
 })->with([
@@ -84,7 +84,7 @@ it('sets pickup eta from the shortest road time to an available driver in the sa
 
 it('does not ask the router for driver times when no driver is available', function () {
     $router = Mockery::mock(RoadRouter::class);
-    $router->shouldReceive('drive')->once()->andReturn((new FakeRoadRouter)->drive(31.5204, 74.3587, 31.5216, 74.4036));
+    $router->shouldReceive('drive')->once()->andReturn((new FakeRoadRouter)->drive(33.561778, 73.148275, 33.59, 73.14));
     $router->shouldNotReceive('durationsTo');
     $this->app->instance(RoadRouter::class, $router);
 
@@ -95,7 +95,20 @@ it('does not ask the router for driver times when no driver is available', funct
         ->assertJsonPath('pickup_eta_min', null);
 });
 
-it('rejects coordinates outside Lahore and a repeated pin', function (array $body, string $field) {
+it('accepts a trip inside Soan Gardens', function () {
+    $token = $this->postJson('/api/register', registration())->assertCreated()->json('token');
+
+    $this->withToken($token)->postJson('/api/estimates', [
+        'pickup_lat' => 33.561778,
+        'pickup_lng' => 73.148275,
+        'destination_lat' => 33.590000,
+        'destination_lng' => 73.140000,
+        'category' => 'economy',
+    ])->assertOk()
+        ->assertJsonPath('route.type', 'LineString');
+});
+
+it('rejects coordinates outside the service area and a repeated pin', function (array $body, string $field) {
     $token = $this->postJson('/api/register', registration())->assertCreated()->json('token');
 
     $this->withToken($token)->postJson('/api/estimates', $body)
@@ -104,9 +117,15 @@ it('rejects coordinates outside Lahore and a repeated pin', function (array $bod
         ->assertJsonStructure(['error' => ['details' => [$field]]]);
 })->with([
     'outside' => [tripBody(['pickup_lat' => 30]), 'pickup_lat'],
+    'lahore' => [tripBody([
+        'pickup_lat' => 31.5204,
+        'pickup_lng' => 74.3587,
+        'destination_lat' => 31.5216,
+        'destination_lng' => 74.4036,
+    ]), 'pickup_lat'],
     'same pin' => [tripBody([
-        'destination_lat' => 31.5204,
-        'destination_lng' => 74.3587,
+        'destination_lat' => 33.561778,
+        'destination_lng' => 73.148275,
     ]), 'destination_lat'],
 ]);
 

@@ -27,7 +27,7 @@ it('registers a rider and returns a token', function () {
         ->assertJsonPath('user.email', 'ayesha@example.com');
 });
 
-it('registers a driver with an available profile at Gulberg', function () {
+it('registers a driver with an available profile at Soan Gardens', function () {
     $response = $this->postJson('/api/register', registration([
         'email' => 'bilal@example.com',
         'role' => 'driver',
@@ -40,8 +40,8 @@ it('registers a driver with an available profile at Gulberg', function () {
         ->assertJsonPath('user.driver_profile.plate', 'LEA-1001')
         ->assertJsonPath('user.driver_profile.category', 'economy')
         ->assertJsonPath('user.driver_profile.status', 'available')
-        ->assertJsonPath('user.driver_profile.lat', '31.520400')
-        ->assertJsonPath('user.driver_profile.lng', '74.358700');
+        ->assertJsonPath('user.driver_profile.lat', '33.561778')
+        ->assertJsonPath('user.driver_profile.lng', '73.148275');
 
     $this->assertDatabaseCount('driver_profiles', 1);
     $this->assertDatabaseCount('users', 1);
@@ -179,11 +179,11 @@ it('seeds the local demo accounts', function () {
 
     $accounts = [
         ['rider@hailryde.test', 'Ayesha Khan', '03000000001', 'rider', null],
-        ['economy1@hailryde.test', 'Bilal Ahmed', '03000000002', 'driver', ['plate' => 'LEA-1001', 'category' => 'economy', 'status' => 'available', 'lat' => '31.520400', 'lng' => '74.358700']],
-        ['economy2@hailryde.test', 'Sana Iqbal', '03000000003', 'driver', ['plate' => 'LEA-1002', 'category' => 'economy', 'status' => 'available', 'lat' => '31.469700', 'lng' => '74.272800']],
-        ['comfort1@hailryde.test', 'Hassan Raza', '03000000004', 'driver', ['plate' => 'LEA-2001', 'category' => 'comfort', 'status' => 'available', 'lat' => '31.461800', 'lng' => '74.406600']],
-        ['comfort2@hailryde.test', 'Maria Qureshi', '03000000005', 'driver', ['plate' => 'LEA-2002', 'category' => 'comfort', 'status' => 'available', 'lat' => '31.521600', 'lng' => '74.403600']],
-        ['offline@hailryde.test', 'Omar Farooq', '03000000006', 'driver', ['plate' => 'LEA-1003', 'category' => 'economy', 'status' => 'offline', 'lat' => '31.483600', 'lng' => '74.316600']],
+        ['economy1@hailryde.test', 'Bilal Ahmed', '03000000002', 'driver', ['plate' => 'LEA-1001', 'category' => 'economy', 'status' => 'available', 'lat' => '33.561778', 'lng' => '73.148275']],
+        ['economy2@hailryde.test', 'Sana Iqbal', '03000000003', 'driver', ['plate' => 'LEA-1002', 'category' => 'economy', 'status' => 'available', 'lat' => '33.590000', 'lng' => '73.140000']],
+        ['comfort1@hailryde.test', 'Hassan Raza', '03000000004', 'driver', ['plate' => 'LEA-2001', 'category' => 'comfort', 'status' => 'available', 'lat' => '33.545000', 'lng' => '73.175000']],
+        ['comfort2@hailryde.test', 'Maria Qureshi', '03000000005', 'driver', ['plate' => 'LEA-2002', 'category' => 'comfort', 'status' => 'available', 'lat' => '33.568500', 'lng' => '73.160000']],
+        ['offline@hailryde.test', 'Omar Farooq', '03000000006', 'driver', ['plate' => 'LEA-1003', 'category' => 'economy', 'status' => 'offline', 'lat' => '33.552000', 'lng' => '73.120000']],
     ];
 
     foreach ($accounts as [$email, $name, $phone, $role, $profile]) {

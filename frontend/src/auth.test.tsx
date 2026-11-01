@@ -17,6 +17,8 @@ vi.mock('maplibre-gl', () => {
       return undefined
     }
     remove() {}
+    easeTo() {}
+    fitBounds() {}
   }
 
   class Marker {
@@ -34,7 +36,7 @@ vi.mock('maplibre-gl', () => {
     }
   }
 
-  return { Map, Marker }
+  return { Map, Marker, setWorkerUrl: () => {} }
 })
 
 const rider = {
@@ -56,8 +58,8 @@ const driver = {
     plate: 'LEA-1001',
     category: 'economy',
     status: 'available',
-    lat: '31.520400',
-    lng: '74.358700',
+    lat: '33.561778',
+    lng: '73.148275',
   },
 }
 
@@ -131,12 +133,19 @@ it('shows field errors from the API and keeps the submit button usable', async (
 it('disables register while the request is in flight and sends a rider home', async () => {
   const user = userEvent.setup()
   let resolveRegister: (response: Response) => void = () => {}
-  vi.mocked(fetch).mockImplementation(
-    () =>
-      new Promise((resolve) => {
+  vi.mocked(fetch).mockImplementation((input: RequestInfo | URL) => {
+    const raw = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+    const path = new URL(raw).pathname
+    if (path === '/api/register') {
+      return new Promise((resolve) => {
         resolveRegister = resolve
-      }),
-  )
+      })
+    }
+    if (path === '/api/rides' || path === '/api/drivers') {
+      return Promise.resolve(jsonResponse({ rides: [], drivers: [] }))
+    }
+    return Promise.reject(new Error(`unmocked ${path}`))
+  })
   renderAt('/register')
 
   await user.type(screen.getByLabelText('Name'), 'Ayesha Khan')
@@ -210,7 +219,17 @@ it('shows the login error and sends a rider home after login', async () => {
   expect(await screen.findByText('These credentials do not match our records.')).toBeVisible()
   expect(screen.queryByRole('button', { name: 'Signing in…' })).not.toBeInTheDocument()
 
-  vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ token: 'rider-token', user: rider }))
+  vi.mocked(fetch).mockImplementation((input: RequestInfo | URL) => {
+    const raw = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+    const path = new URL(raw).pathname
+    if (path === '/api/login') {
+      return Promise.resolve(jsonResponse({ token: 'rider-token', user: rider }))
+    }
+    if (path === '/api/rides' || path === '/api/drivers') {
+      return Promise.resolve(jsonResponse({ rides: [], drivers: [] }))
+    }
+    return Promise.reject(new Error(`unmocked ${path}`))
+  })
   await user.clear(screen.getByLabelText('Password'))
   await user.type(screen.getByLabelText('Password'), 'password')
   await user.click(screen.getByRole('button', { name: 'Sign in' }))

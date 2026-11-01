@@ -17,6 +17,7 @@ const rider = {
 type MapClick = { lngLat: { lat: number; lng: number }; originalEvent?: { target: EventTarget } }
 
 const mapClicks = vi.hoisted(() => [] as Array<(event: MapClick) => void>)
+const centers = vi.hoisted(() => [] as number[][])
 const markers = vi.hoisted(
   () =>
     [] as Array<{
@@ -49,6 +50,10 @@ vi.mock('maplibre-gl', () => {
       return { setData: () => {} }
     }
     remove() {}
+    easeTo(options: { center: number[] }) {
+      centers.push(options.center)
+    }
+    fitBounds() {}
   }
 
   class Marker {
@@ -90,7 +95,7 @@ vi.mock('maplibre-gl', () => {
 })
 
 const position = {
-  coords: { latitude: 31.5204, longitude: 74.3587 },
+  coords: { latitude: 33.561778, longitude: 73.148275 },
 }
 
 function grantLocation() {
@@ -101,8 +106,8 @@ function grantLocation() {
   })
 }
 
-const pickup = { id: 'p', name: '31.520400, 74.358700', lat: '31.520400', lng: '74.358700' }
-const destination = { id: 'd', name: '31.521600, 74.403600', lat: '31.521600', lng: '74.403600' }
+const pickup = { id: 'p', name: '33.561778, 73.148275', lat: '33.561778', lng: '73.148275' }
+const destination = { id: 'd', name: '33.590000, 73.140000', lat: '33.590000', lng: '73.140000' }
 
 const quote = {
   distance_km: '4.20',
@@ -110,10 +115,10 @@ const quote = {
   fare_amount: '389.00',
   currency: 'PKR',
   pickup_eta_min: 4,
-  route: { type: 'LineString', coordinates: [[74.3587, 31.5204], [74.4036, 31.5216]] },
+  route: { type: 'LineString', coordinates: [[73.148275, 33.561778], [73.14, 33.59]] },
 }
 
-const economyDriver = { id: 2, lat: '31.510100', lng: '74.343600', category: 'economy' }
+const economyDriver = { id: 2, lat: '33.555000', lng: '73.140000', category: 'economy' }
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -125,6 +130,14 @@ function jsonResponse(body: unknown, status = 200) {
 function pathOf(input: RequestInfo | URL): string {
   const raw = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
   return new URL(raw).pathname
+}
+
+function emptyOngoingRides(path: string, init?: RequestInit): Promise<Response> | null {
+  const method = (init?.method ?? 'GET').toUpperCase()
+  if (method === 'GET' && path === '/api/rides') {
+    return Promise.resolve(jsonResponse({ rides: [] }))
+  }
+  return null
 }
 
 function renderBook() {
@@ -142,8 +155,8 @@ async function clickMap(event: MapClick) {
 }
 
 async function chooseTrip() {
-  await screen.findByText('Pickup 31.520400, 74.358700')
-  await clickMap({ lngLat: { lat: 31.5216, lng: 74.4036 } })
+  await screen.findByText('Pickup 33.561778, 73.148275')
+  await clickMap({ lngLat: { lat: 33.59, lng: 73.14 } })
   expect(await screen.findByText(/389\.00/)).toBeVisible()
 }
 
@@ -156,6 +169,7 @@ afterEach(() => {
 beforeEach(() => {
   mapClicks.length = 0
   markers.length = 0
+  centers.length = 0
   localStorage.clear()
   sessionStorage.clear()
   localStorage.setItem('hailryde.token', 'rider-token')
@@ -170,6 +184,10 @@ it('shows a busy label while create is in flight', async () => {
     'fetch',
     vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const path = pathOf(input)
+      const ongoing = emptyOngoingRides(path, init)
+      if (ongoing) {
+        return ongoing
+      }
       if (path === '/api/me') {
         return Promise.resolve(jsonResponse({ user: rider }))
       }
@@ -231,6 +249,10 @@ it('shows the error and drops the busy label when create fails', async () => {
     'fetch',
     vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const path = pathOf(input)
+      const ongoing = emptyOngoingRides(path, init)
+      if (ongoing) {
+        return ongoing
+      }
       if (path === '/api/me') {
         return Promise.resolve(jsonResponse({ user: rider }))
       }
@@ -267,12 +289,16 @@ it('shows the error and drops the busy label when create fails', async () => {
   expect(screen.getByRole('button', { name: 'Retry' })).toBeVisible()
 })
 
-it('uses a granted position inside Lahore as the pickup', async () => {
+it('uses a granted position inside Soan Gardens as the pickup', async () => {
   grantLocation()
   vi.stubGlobal(
     'fetch',
-    vi.fn((input: RequestInfo | URL) => {
+    vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const path = pathOf(input)
+      const ongoing = emptyOngoingRides(path, init)
+      if (ongoing) {
+        return ongoing
+      }
       if (path === '/api/me') return Promise.resolve(jsonResponse({ user: rider }))
       if (path === '/api/drivers') return Promise.resolve(jsonResponse({ drivers: [] }))
       return Promise.reject(new Error(`unmocked ${path}`))
@@ -281,15 +307,19 @@ it('uses a granted position inside Lahore as the pickup', async () => {
 
   renderBook()
 
-  expect(await screen.findByText('Pickup 31.520400, 74.358700')).toBeVisible()
+  expect(await screen.findByText('Pickup 33.561778, 73.148275')).toBeVisible()
 })
 
 it('ignores a map click whose target is inside a pin', async () => {
   grantLocation()
   vi.stubGlobal(
     'fetch',
-    vi.fn((input: RequestInfo | URL) => {
+    vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const path = pathOf(input)
+      const ongoing = emptyOngoingRides(path, init)
+      if (ongoing) {
+        return ongoing
+      }
       if (path === '/api/me') return Promise.resolve(jsonResponse({ user: rider }))
       if (path === '/api/drivers') return Promise.resolve(jsonResponse({ drivers: [] }))
       return Promise.reject(new Error(`unmocked ${path}`))
@@ -297,20 +327,20 @@ it('ignores a map click whose target is inside a pin', async () => {
   )
 
   renderBook()
-  await screen.findByText('Pickup 31.520400, 74.358700')
+  await screen.findByText('Pickup 33.561778, 73.148275')
 
   const pickupMarker = markers.find((marker) => marker.options.color === '#d97706' && !marker.removed)
   expect(pickupMarker).toBeDefined()
-  expect(pickupMarker?.lngLat).toEqual([74.3587, 31.5204])
+  expect(pickupMarker?.lngLat).toEqual([73.148275, 33.561778])
   const inner = document.createElement('span')
   pickupMarker?.element.appendChild(inner)
 
-  await clickMap({ lngLat: { lat: 31.5216, lng: 74.4036 }, originalEvent: { target: inner } })
+  await clickMap({ lngLat: { lat: 33.59, lng: 73.14 }, originalEvent: { target: inner } })
   await new Promise((resolve) => setTimeout(resolve, 50))
   expect(screen.getByText('Destination not set')).toBeVisible()
 
-  await clickMap({ lngLat: { lat: 31.5216, lng: 74.4036 }, originalEvent: { target: document.body } })
-  expect(await screen.findByText('Destination 31.521600, 74.403600')).toBeVisible()
+  await clickMap({ lngLat: { lat: 33.59, lng: 73.14 }, originalEvent: { target: document.body } })
+  expect(await screen.findByText('Destination 33.590000, 73.140000')).toBeVisible()
 })
 
 it('keeps quoting when a driver poll fails after a successful one', async () => {
@@ -326,8 +356,12 @@ it('keeps quoting when a driver poll fails after a successful one', async () => 
   }) as typeof window.setInterval)
 
   let driverCalls = 0
-  const fetchMock = vi.fn((input: RequestInfo | URL) => {
+  const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
     const path = pathOf(input)
+    const ongoing = emptyOngoingRides(path, init)
+    if (ongoing) {
+      return ongoing
+    }
     if (path === '/api/me') return Promise.resolve(jsonResponse({ user: rider }))
     if (path === '/api/drivers') {
       driverCalls += 1
@@ -353,7 +387,7 @@ it('keeps quoting when a driver poll fails after a successful one', async () => 
   expect(screen.queryByText(/Could not reach HailRyde/)).not.toBeInTheDocument()
 
   const driverMarkers = markers.filter(
-    (marker) => marker.lngLat?.[0] === 74.3436 && marker.lngLat?.[1] === 31.5101,
+    (marker) => marker.lngLat?.[0] === 73.14 && marker.lngLat?.[1] === 33.555,
   )
   expect(driverMarkers).toHaveLength(1)
   expect(driverMarkers[0].added).toBe(true)
@@ -366,8 +400,12 @@ it('ignores a quote response for an older pin pair', async () => {
   const pending: Array<(response: Response) => void> = []
   vi.stubGlobal(
     'fetch',
-    vi.fn((input: RequestInfo | URL) => {
+    vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const path = pathOf(input)
+      const ongoing = emptyOngoingRides(path, init)
+      if (ongoing) {
+        return ongoing
+      }
       if (path === '/api/me') return Promise.resolve(jsonResponse({ user: rider }))
       if (path === '/api/drivers') return Promise.resolve(jsonResponse({ drivers: [] }))
       if (path === '/api/estimates') {
@@ -380,12 +418,12 @@ it('ignores a quote response for an older pin pair', async () => {
   )
 
   renderBook()
-  await screen.findByText('Pickup 31.520400, 74.358700')
+  await screen.findByText('Pickup 33.561778, 73.148275')
 
-  await clickMap({ lngLat: { lat: 31.5216, lng: 74.4036 } })
+  await clickMap({ lngLat: { lat: 33.59, lng: 73.14 } })
   await waitFor(() => expect(pending).toHaveLength(1))
 
-  await clickMap({ lngLat: { lat: 31.53, lng: 74.38 } })
+  await clickMap({ lngLat: { lat: 33.575, lng: 73.155 } })
   await waitFor(() => expect(pending).toHaveLength(2))
 
   await act(async () => {
@@ -411,8 +449,12 @@ it('does not move a placed pickup when a GPS fix arrives late', async () => {
   })
   vi.stubGlobal(
     'fetch',
-    vi.fn((input: RequestInfo | URL) => {
+    vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const path = pathOf(input)
+      const ongoing = emptyOngoingRides(path, init)
+      if (ongoing) {
+        return ongoing
+      }
       if (path === '/api/me') return Promise.resolve(jsonResponse({ user: rider }))
       if (path === '/api/drivers') return Promise.resolve(jsonResponse({ drivers: [] }))
       return Promise.reject(new Error(`unmocked ${path}`))
@@ -423,13 +465,142 @@ it('does not move a placed pickup when a GPS fix arrives late', async () => {
   await screen.findByText('Pickup not set')
   await waitFor(() => expect(deliver).not.toBeNull())
 
-  await clickMap({ lngLat: { lat: 31.55, lng: 74.4 } })
-  expect(await screen.findByText('Pickup 31.550000, 74.400000')).toBeVisible()
+  await clickMap({ lngLat: { lat: 33.57, lng: 73.16 } })
+  expect(await screen.findByText('Pickup 33.570000, 73.160000')).toBeVisible()
 
   await act(async () => {
     deliver?.(position)
   })
 
-  expect(screen.getByText('Pickup 31.550000, 74.400000')).toBeVisible()
-  expect(screen.queryByText('Pickup 31.520400, 74.358700')).not.toBeInTheDocument()
+  expect(screen.getByText('Pickup 33.570000, 73.160000')).toBeVisible()
+  expect(screen.queryByText('Pickup 33.561778, 73.148275')).not.toBeInTheDocument()
+})
+
+it('asks for a network location before a precise one', async () => {
+  const accuracy: boolean[] = []
+  vi.stubGlobal('navigator', {
+    geolocation: {
+      getCurrentPosition: (
+        success: (pos: typeof position) => void,
+        _error: unknown,
+        options?: PositionOptions,
+      ) => {
+        accuracy.push(Boolean(options?.enableHighAccuracy))
+        success(position)
+      },
+    },
+  })
+  vi.stubGlobal(
+    'fetch',
+    vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const path = pathOf(input)
+      const ongoing = emptyOngoingRides(path, init)
+      if (ongoing) {
+        return ongoing
+      }
+      if (path === '/api/me') return Promise.resolve(jsonResponse({ user: rider }))
+      if (path === '/api/drivers') return Promise.resolve(jsonResponse({ drivers: [] }))
+      return Promise.reject(new Error(`unmocked ${path}`))
+    }),
+  )
+
+  renderBook()
+  expect(await screen.findByText('Pickup 33.561778, 73.148275')).toBeVisible()
+  expect(accuracy).toEqual([false])
+  expect(centers).toEqual([[73.148275, 33.561778]])
+})
+
+it('uses a precise fix when the network location times out', async () => {
+  const accuracy: boolean[] = []
+  vi.stubGlobal('navigator', {
+    geolocation: {
+      getCurrentPosition: (
+        success: (pos: typeof position) => void,
+        error: (err: { code: number }) => void,
+        options?: PositionOptions,
+      ) => {
+        const precise = Boolean(options?.enableHighAccuracy)
+        accuracy.push(precise)
+        if (precise) {
+          success(position)
+        } else {
+          error({ code: 3 })
+        }
+      },
+    },
+  })
+  vi.stubGlobal(
+    'fetch',
+    vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const path = pathOf(input)
+      const ongoing = emptyOngoingRides(path, init)
+      if (ongoing) {
+        return ongoing
+      }
+      if (path === '/api/me') return Promise.resolve(jsonResponse({ user: rider }))
+      if (path === '/api/drivers') return Promise.resolve(jsonResponse({ drivers: [] }))
+      return Promise.reject(new Error(`unmocked ${path}`))
+    }),
+  )
+
+  renderBook()
+  expect(await screen.findByText('Pickup 33.561778, 73.148275')).toBeVisible()
+  expect(accuracy).toEqual([false, true])
+})
+
+it('shows that location is in progress and then sets the pickup from the button', async () => {
+  const user = userEvent.setup()
+  let allow = false
+  vi.stubGlobal('navigator', {
+    geolocation: {
+      getCurrentPosition: (
+        success: (pos: typeof position) => void,
+        error: (err: { code: number }) => void,
+      ) => {
+        if (allow) {
+          success(position)
+        } else {
+          error({ code: 2 })
+        }
+      },
+    },
+  })
+  vi.stubGlobal(
+    'fetch',
+    vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const path = pathOf(input)
+      const ongoing = emptyOngoingRides(path, init)
+      if (ongoing) {
+        return ongoing
+      }
+      if (path === '/api/me') return Promise.resolve(jsonResponse({ user: rider }))
+      if (path === '/api/drivers') return Promise.resolve(jsonResponse({ drivers: [] }))
+      return Promise.reject(new Error(`unmocked ${path}`))
+    }),
+  )
+
+  renderBook()
+  expect(await screen.findByText('Place the pickup pin on the map.')).toBeVisible()
+  expect(screen.getByRole('button', { name: 'Use my location' })).toBeEnabled()
+
+  allow = true
+  let release: (pos: typeof position) => void = () => {}
+  vi.stubGlobal('navigator', {
+    geolocation: {
+      getCurrentPosition: (success: (pos: typeof position) => void) => {
+        release = success
+      },
+    },
+  })
+
+  await user.click(screen.getByRole('button', { name: 'Use my location' }))
+  expect(screen.getByRole('button', { name: 'Finding your location…' })).toBeDisabled()
+
+  await act(async () => {
+    release(position)
+  })
+
+  expect(await screen.findByText('Pickup 33.561778, 73.148275')).toBeVisible()
+  expect(screen.getByRole('button', { name: 'Use my location' })).toBeEnabled()
+  expect(screen.queryByText('Place the pickup pin on the map.')).not.toBeInTheDocument()
 })

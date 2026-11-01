@@ -13,4 +13,4 @@ Read in this order:
 7. [06-frontend.md](06-frontend.md)
 8. [07-testing.md](07-testing.md)
 
-HailRyde lets a rider in Lahore register, set a pickup and destination on the map, choose Economy or Comfort, see a server-priced road fare and pickup ETA, and request a ride. A driver registers, accepts one matching requested ride, and completes it. PostgreSQL row locks make a second accept lose.
+HailRyde lets a rider in Soan Gardens register, set a pickup and destination on the map, choose Economy or Comfort, see a server-priced road fare and pickup ETA, and request a ride. A driver registers, accepts one matching requested ride, and completes it. PostgreSQL row locks make a second accept lose.

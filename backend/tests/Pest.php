@@ -32,10 +32,10 @@ function fareFromRoute(float $meters, float $seconds, int $base, int $perKm, int
 function tripBody(array $overrides = []): array
 {
     return array_merge([
-        'pickup_lat' => 31.5204,
-        'pickup_lng' => 74.3587,
-        'destination_lat' => 31.5216,
-        'destination_lng' => 74.4036,
+        'pickup_lat' => 33.561778,
+        'pickup_lng' => 73.148275,
+        'destination_lat' => 33.59,
+        'destination_lng' => 73.14,
         'category' => 'economy',
     ], $overrides);
 }

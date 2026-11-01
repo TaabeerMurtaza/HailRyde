@@ -15,7 +15,7 @@ Drivers also send `plate` (required, max 20) and `category` (`economy` or `comfo
 One database transaction creates the user and, for a driver, one `driver_profiles` row:
 
 - status `available`
-- lat `31.520400`, lng `74.358700` (Gulberg)
+- lat `33.561778`, lng `73.148275` (Soan Gardens)
 
 Response `201`:
 
@@ -52,10 +52,10 @@ Password for every seed account is `password`. Document it in the README as loca
 | Email | Role | Category | Status | Lat | Lng | Plate |
 | --- | --- | --- | --- | --- | --- | --- |
 | rider@hailryde.test | rider | | | | | |
-| economy1@hailryde.test | driver | economy | available | 31.520400 | 74.358700 | LEA-1001 |
-| economy2@hailryde.test | driver | economy | available | 31.469700 | 74.272800 | LEA-1002 |
-| comfort1@hailryde.test | driver | comfort | available | 31.461800 | 74.406600 | LEA-2001 |
-| comfort2@hailryde.test | driver | comfort | available | 31.521600 | 74.403600 | LEA-2002 |
-| offline@hailryde.test | driver | economy | offline | 31.483600 | 74.316600 | LEA-1003 |
+| economy1@hailryde.test | driver | economy | available | 33.561778 | 73.148275 | LEA-1001 |
+| economy2@hailryde.test | driver | economy | available | 33.590000 | 73.140000 | LEA-1002 |
+| comfort1@hailryde.test | driver | comfort | available | 33.545000 | 73.175000 | LEA-2001 |
+| comfort2@hailryde.test | driver | comfort | available | 33.568500 | 73.160000 | LEA-2002 |
+| offline@hailryde.test | driver | economy | offline | 33.552000 | 73.120000 | LEA-1003 |
 
 Seed names: Ayesha Khan, Bilal Ahmed, Sana Iqbal, Hassan Raza, Maria Qureshi, Omar Farooq, in that email order. Phone numbers `03000000001` through `03000000006`.

@@ -28,12 +28,12 @@ it('creates a requested ride for a rider and ignores a client fare', function ()
         ->assertJsonPath('ride.pickup_eta_min', null)
         ->assertJsonPath('ride.driver', null)
         ->assertJsonPath('ride.pickup', [
-            'id' => '31.520400,74.358700',
-            'name' => '31.520400, 74.358700',
-            'lat' => '31.520400',
-            'lng' => '74.358700',
+            'id' => '33.561778,73.148275',
+            'name' => '33.561778, 73.148275',
+            'lat' => '33.561778',
+            'lng' => '73.148275',
         ])
-        ->assertJsonPath('ride.destination.name', '31.521600, 74.403600')
+        ->assertJsonPath('ride.destination.name', '33.590000, 73.140000')
         ->assertJsonPath('ride.route.type', 'LineString')
         ->assertJsonPath('ride.rider.name', 'Ayesha Khan')
         ->assertJsonPath('ride.rider.phone', '03000000001')
@@ -45,10 +45,10 @@ it('creates a requested ride for a rider and ignores a client fare', function ()
         ->and(Ride::query()->value('fare_amount'))->toBe($expected['fare_amount']);
 
     $canonical = json_encode([
-        'pickup_lat' => '31.520400',
-        'pickup_lng' => '74.358700',
-        'destination_lat' => '31.521600',
-        'destination_lng' => '74.403600',
+        'pickup_lat' => '33.561778',
+        'pickup_lng' => '73.148275',
+        'destination_lat' => '33.590000',
+        'destination_lng' => '73.140000',
         'category' => 'economy',
     ], JSON_THROW_ON_ERROR);
 
@@ -92,8 +92,8 @@ it('rejects invalid ride input', function (array $body, array $headers, string $
 })->with([
     'invalid body' => [tripBody(['pickup_lat' => null]), ['Idempotency-Key' => 'ride-1'], 'pickup_lat'],
     'same place' => [tripBody([
-        'destination_lat' => 31.5204,
-        'destination_lng' => 74.3587,
+        'destination_lat' => 33.561778,
+        'destination_lng' => 73.148275,
     ]), ['Idempotency-Key' => 'ride-1'], 'destination_lat'],
     'missing key' => [tripBody(), [], 'Idempotency-Key'],
 ]);
@@ -119,7 +119,7 @@ it('returns idempotency_conflict when the same key is sent with a different dest
 
     $this->withToken($token)->postJson('/api/rides', tripBody(), ['Idempotency-Key' => 'ride-1'])->assertCreated();
 
-    $this->withToken($token)->postJson('/api/rides', tripBody(['destination_lat' => 31.5101, 'destination_lng' => 74.3436]), ['Idempotency-Key' => 'ride-1'])
+    $this->withToken($token)->postJson('/api/rides', tripBody(['destination_lat' => 33.5685, 'destination_lng' => 73.16]), ['Idempotency-Key' => 'ride-1'])
         ->assertStatus(409)
         ->assertJsonPath('error.code', 'idempotency_conflict')
         ->assertJsonPath('error.details', []);

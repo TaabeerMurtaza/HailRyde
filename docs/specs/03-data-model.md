@@ -54,10 +54,10 @@ Sanctum `personal_access_tokens` as published by the package.
 
 Places are not stored. A pickup or destination is a map point the rider chooses.
 
-- Bookable area: south 31.300000, north 31.700000, west 74.100000, east 74.550000. Coordinates outside it are validation errors.
+- Bookable area: south 33.490000, north 33.630000, west 73.070000, east 73.230000. This is Soan Gardens plus about six kilometres of surrounding roads. Coordinates outside it are validation errors.
 - Each coordinate is rounded to 6 decimal places before it is hashed, stored, or compared.
-- `place_id` is `{lat},{lng}` with both values at 6 decimal places, for example `31.520400,74.358700`.
-- `name` is `{lat}, {lng}`, for example `31.520400, 74.358700`.
+- `place_id` is `{lat},{lng}` with both values at 6 decimal places, for example `33.561778,73.148275`.
+- `name` is `{lat}, {lng}`, for example `33.561778, 73.148275`.
 - `rides.route` is nullable JSON. Rows written before routes existed have no route.
 
-New drivers still start at Gulberg 31.520400, 74.358700, as the auth spec says.
+New drivers still start at Soan Gardens 33.561778, 73.148275, as the auth spec says.

@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test'
 
 const api = 'http://localhost:8000'
 
-test('books an economy ride from Gulberg by clicking the map', async ({ page, request }) => {
+test('books an economy ride from Soan Gardens by clicking the map', async ({ page, request }) => {
   const login = await request.post(`${api}/api/login`, {
     data: { email: 'rider@hailryde.test', password: 'password' },
   })
@@ -25,7 +25,7 @@ test('books an economy ride from Gulberg by clicking the map', async ({ page, re
   }
 
   await page.context().grantPermissions(['geolocation'])
-  await page.context().setGeolocation({ latitude: 31.5204, longitude: 74.3587 })
+  await page.context().setGeolocation({ latitude: 33.561778, longitude: 73.148275 })
 
   await page.goto('/login')
   await page.getByLabel('Email').fill('rider@hailryde.test')
@@ -33,7 +33,7 @@ test('books an economy ride from Gulberg by clicking the map', async ({ page, re
   await page.getByRole('button', { name: 'Sign in' }).click()
 
   await expect(page.getByRole('heading', { name: 'Book a ride' })).toBeVisible()
-  await expect(page.getByText('Pickup 31.520400, 74.358700')).toBeVisible()
+  await expect(page.getByText('Pickup 33.561778, 73.148275')).toBeVisible()
   const map = page.getByRole('region', { name: 'Trip map' })
   const box = await map.boundingBox()
   if (!box) throw new Error('Trip map has no box')
