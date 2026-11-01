@@ -54,7 +54,7 @@ Sanctum `personal_access_tokens` as published by the package.
 
 Places are not stored. A pickup or destination is a map point the rider chooses.
 
-- Bookable area: south 33.490000, north 33.630000, west 73.070000, east 73.230000. This is Soan Gardens plus about six kilometres of surrounding roads. Coordinates outside it are validation errors.
+- Bookable area: south 33.490000, north 33.630000, west 73.070000, east 73.230000. This is Soan Gardens plus about six kilometres of surrounding roads. Coordinates outside it are validation errors. The assessment brief uses Lahore as the example city. Soan Gardens is the service area so a phone or browser at that real place can set the pickup during testing.
 - Each coordinate is rounded to 6 decimal places before it is hashed, stored, or compared.
 - `place_id` is `{lat},{lng}` with both values at 6 decimal places, for example `33.561778,73.148275`.
 - `name` is `{lat}, {lng}`, for example `33.561778, 73.148275`.

@@ -32,6 +32,10 @@ Those database credentials are local development only.
 
 `.env` is never committed. `.env.example` documents the local Postgres settings with `DB_HOST=127.0.0.1` for a host-run API. Compose overrides the host to `postgres`.
 
+## README
+
+The README names the service area as Soan Gardens. The assessment brief uses Lahore as the example city. Soan Gardens is used so a phone or browser at that real place can set the pickup during testing. The README also says that a driver accepts a requested ride in their own category, that the pickup ETA is the driving time to the nearest available driver in that category, and it lists the known limitations from `docs/architecture.md`.
+
 ## Secrets
 
 No production secrets. Demo account passwords are documented in the README and exist only for local seed data.

@@ -18,7 +18,7 @@ Accounts, sessions, fares, idempotent create, and ride transitions are implement
 
 4. Non-OK API responses become `{ code, message, details }`. The UI shows `error.details` on fields and `error.message` otherwise. A failed network call uses `network_error`. While a ride create is in flight the button shows a busy label. When it fails, that label is gone and the error is shown. `401` clears `hailryde.token` and returns to login.
 
-5. Keep one API and one Postgres primary while Soan Gardens is the only service area. Add a `city` on places, rides, and driver profiles before opening another area, and route reads to a replica when the primary's read load is the limit. Horizontal API processes stay stateless because the session is a bearer token.
+5. Keep one API and one Postgres primary while Soan Gardens is the only service area. Add a `city` on rides and driver profiles before opening another area, and route reads to a replica when the primary's read load is the limit. Horizontal API processes stay stateless because the session is a bearer token.
 
 6. Add Redis when token revocation, rate limits, or a hot available-driver cache need to leave Postgres. Add a message broker when acceptance, notifications, or payouts must survive a request process dying. Split services when a team owns a boundary that deploys on its own, such as payments. None of those are in this local demo.
 
